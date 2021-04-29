@@ -1,3 +1,53 @@
+//! Rust API to the
+//! [Bosch BSEC library](https://www.bosch-sensortec.com/software-tools/software/bsec/).
+//!
+//! This documentation will use *bsec* to refer to this crate, while
+//! *Bosch BSEC* is used to refer to the original BSEC library provided by
+//! Bosch.
+//!
+//! ## Important license information
+//!
+//! The Bosch BSEC library is proprietary. Thus, it cannot be included in this
+//! crate and needs to be obtained separately. There will be also some
+//! documentation missing in the bsec crate where you will have to refer to the
+//! documentation provided with your copy of the Bosch BSEC library.
+//!
+//! You are responsible for adhering to the Bosch BSEC lincese terms in your
+//! products, despite the Rust API in this crate being published under a
+//! permissive license.
+//!
+//! * [Bosch BSEC website to obtain your copy](https://www.bosch-sensortec.com/software-tools/software/bsec/)
+//! * [Bosch BESC license terms at the time of writing](https://www.bosch-sensortec.com/media/boschsensortec/downloads/bsec/2017-07-17_clickthrough_license_terms_environmentalib_sw_clean.pdf)
+//!
+//!
+//! ## Getting started
+//!
+//! To be able to use this crate it needs to know where to find the Bosch BSEC
+//! header files and library on your system. These paths are provided as the
+//! configuration options `besc_include_path` and `bsec_library_path` to the
+//! Rust compiler.
+//!
+//! You can do this by creating a `.cargo/config` file in your crate with the
+//! following content (adjust the paths accordingly):
+//!
+//! ```toml
+//! [build]
+//! rustflags = [
+//!     '--cfg', 'bsec_include_path="/path/to/BSEC_1.4.8.0_Generic_Release/algo/normal_version/inc"',
+//!     '--cfg', 'bsec_library_path="/path/to/BSEC_1.4.8.0_Generic_Release/algo/normal_version/bin/target-arch"',
+//! ]
+//! ```
+//!
+//! (You might want to compare with the instructions for
+//! [libalgobsec-sys](https://crates.io/crates/libalgobsec-sys) providing the
+//! actual low-level bindings.)
+//!
+//! ## Example
+//!
+//! TODO explain physical and virtual sensor (output)
+//! TODO explain handle to singleton
+//! TODO
+
 use libalgobsec_sys::*;
 use std::borrow::Borrow;
 use std::convert::{From, TryFrom, TryInto};
@@ -9,10 +59,16 @@ use std::time::Duration;
 
 static BSEC_IN_USE: AtomicBool = AtomicBool::new(false);
 
+/// The bsec crate needs a clock capable of providing nanosecond timestamps.
+/// Implement this trait according to your hardware platform.
 pub trait Time {
+    /// Return a monotonically increasing timestamp with nanosecond resolution.
+    ///
+    /// The reference point may be arbitrary.
     fn timestamp_ns(&self) -> i64;
 }
 
+/// Handle to a struct with settings for the BME sensor.
 pub struct BmeSettingsHandle<'a> {
     bme_settings: &'a bsec_bme_settings_t,
 }
@@ -21,38 +77,68 @@ impl<'a> BmeSettingsHandle<'a> {
     fn new(bme_settings: &'a bsec_bme_settings_t) -> Self {
         Self { bme_settings }
     }
+
     pub fn heater_temperature(&self) -> u16 {
         self.bme_settings.heater_temperature
     }
+
     pub fn heating_duration(&self) -> u16 {
         self.bme_settings.heating_duration
     }
+
     pub fn run_gas(&self) -> bool {
         self.bme_settings.run_gas == 1
     }
+
     pub fn pressure_oversampling(&self) -> u8 {
         self.bme_settings.pressure_oversampling
     }
+
     pub fn temperature_oversampling(&self) -> u8 {
         self.bme_settings.temperature_oversampling
     }
+
     pub fn humidity_oversampling(&self) -> u8 {
         self.bme_settings.humidity_oversampling
     }
 }
 
+/// Encapsulates data read from a BME physical sensor.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct BmeOutput {
+    /// The sensor value read.
     pub signal: f32,
+
+    /// The sensor read.
     pub sensor: PhysicalSensorInput,
 }
 
+/// Trait to implement for your specific hardware to obtain measurements from
+/// the BME sensor.
 pub trait BmeSensor {
+    /// Error type if an operation with the sensor fails.
     type Error: Debug;
+
+    /// Start a sensor measurement.
+    ///
+    /// * `settings`: Settings specifying the measurement protocol.
+    ///
+    /// Shoud returns the duration after which the measurement will be available
+    /// or an error.
     fn start_measurement(&mut self, settings: &BmeSettingsHandle) -> Result<Duration, Self::Error>;
+
+    /// Read a finished sensor measurement.
+    ///
+    /// Returns the sensor measurements as a vector with an item for each
+    /// physical sensor read.
+    ///
+    /// To compensate for heat sources near the sensor add an additional output
+    /// to the vector, using the sensor type [`PhysicalSensorInput::HeatSource`]
+    /// and the desired correction in degrees Celsius.
     fn get_measurement(&mut self) -> nb::Result<Vec<BmeOutput>, Self::Error>;
 }
 
+/// Handle to encapsulates the Bosch BSEC and related state.
 pub struct Bsec<S: BmeSensor, T: Time, B: Borrow<T>> {
     bme: S,
     subscribed: u32,
@@ -63,6 +149,11 @@ pub struct Bsec<S: BmeSensor, T: Time, B: Borrow<T>> {
 }
 
 impl<S: BmeSensor, T: Time, B: Borrow<T>> Bsec<S, T, B> {
+    /// Initialize the Bosch BSEC library and return a handle to interact with
+    /// it.
+    ///
+    /// * `bme`: [`BmeSensor`] implementation to interact with the BME sensor.
+    /// * `time`: [`Time`] implementation to obtain timestamps.
     pub fn init(bme: S, time: B) -> Result<Self, Error<S::Error>> {
         if !BSEC_IN_USE.compare_and_swap(false, true, Ordering::SeqCst) {
             unsafe {
@@ -81,6 +172,13 @@ impl<S: BmeSensor, T: Time, B: Borrow<T>> Bsec<S, T, B> {
         }
     }
 
+    /// Change subscription to virtual sensor outputs.
+    ///
+    /// * `requested_outputs`: Configuration of virtual sensors and their sample
+    ///   rates to subscribe to.
+    ///
+    /// Returns a vector of physical sensors that need to be sampled with the
+    /// respective sample rates.
     pub fn update_subscription(
         &mut self,
         requested_outputs: &[RequestedSensorConfiguration],
@@ -125,10 +223,16 @@ impl<S: BmeSensor, T: Time, B: Borrow<T>> Bsec<S, T, B> {
             .filter_map(|x| RequiredSensorSettings::try_from(x).ok())
             .collect())
     }
+
+    /// Returns the timestamp when the next measurement has to be triggered.
     pub fn next_measurement(&self) -> i64 {
         self.next_measurement
     }
 
+    /// Trigger the next measurement.
+    ///
+    /// Returns the duration until the measurement becomes available. Call
+    /// [`Self::process_last_measurement`] after the duration has passed.
     pub fn start_next_measurement(&mut self) -> nb::Result<Duration, Error<S::Error>> {
         let mut bme_settings = bsec_bme_settings_t {
             next_call: 0,
@@ -155,6 +259,14 @@ impl<S: BmeSensor, T: Time, B: Borrow<T>> Bsec<S, T, B> {
             .map_err(Error::BmeSensorError)
             .map_err(nb::Error::Other)
     }
+
+    /// Process the last triggered measurement.
+    ///
+    /// Call this method after the duration returned from a call to
+    /// [`Self::start_next_measurement`] has passed.
+    ///
+    /// Returns a vector of virtual sensor outputs calculated by the Bosch BSEC
+    /// library.
     pub fn process_last_measurement(&mut self) -> nb::Result<Vec<OutputSignal>, Error<S::Error>> {
         let time_stamp = self.time.borrow().timestamp_ns(); // FIXME provide timestamp closer to measurement?
         let inputs: Vec<bsec_input_t> = self
@@ -206,6 +318,7 @@ impl<S: BmeSensor, T: Time, B: Borrow<T>> Bsec<S, T, B> {
         Ok(signals?)
     }
 
+    /// Get the current raw Bosch BSEC state, e.g. to persist it before shutdown.
     pub fn get_state(&self) -> Result<Vec<u8>, Error<S::Error>> {
         let mut state = [0u8; BSEC_MAX_STATE_BLOB_SIZE as usize];
         let mut work_buffer = [0u8; BSEC_MAX_WORKBUFFER_SIZE as usize];
@@ -224,6 +337,7 @@ impl<S: BmeSensor, T: Time, B: Borrow<T>> Bsec<S, T, B> {
         Ok(state[..state_length as usize].into())
     }
 
+    /// Set the raw Bosch BSEC state, e.g. to restore persisted state after shutdown.
     pub fn set_state(&mut self, state: &[u8]) -> Result<(), Error<S::Error>> {
         let mut work_buffer = [0u8; BSEC_MAX_WORKBUFFER_SIZE as usize];
         unsafe {
@@ -237,6 +351,8 @@ impl<S: BmeSensor, T: Time, B: Borrow<T>> Bsec<S, T, B> {
         }
         Ok(())
     }
+
+    /// Get the current (raw) Bosch BSEC configuration.
     pub fn get_configuration(&self) -> Result<Vec<u8>, Error<S::Error>> {
         let mut serialized_settings = [0u8; BSEC_MAX_PROPERTY_BLOB_SIZE as usize];
         let mut serialized_settings_length = 0u32;
@@ -255,6 +371,10 @@ impl<S: BmeSensor, T: Time, B: Borrow<T>> Bsec<S, T, B> {
         Ok(serialized_settings[..serialized_settings_length as usize].into())
     }
 
+    /// Set the (raw) Bosch BSEC configuration.
+    ///
+    /// Your copy of the Bosch BSEC library should contain several different
+    /// configuration files. See the Bosch BSEC documentation for more information.
     pub fn set_configuration(&mut self, serialized_settings: &[u8]) -> Result<(), Error<S::Error>> {
         let mut work_buffer = [0u8; BSEC_MAX_WORKBUFFER_SIZE as usize];
         unsafe {
@@ -269,6 +389,7 @@ impl<S: BmeSensor, T: Time, B: Borrow<T>> Bsec<S, T, B> {
         Ok(())
     }
 
+    /// See documentation of `bsec_reset_output` in the Bosch BSEC documentation.
     pub fn reset_output(&mut self, sensor: VirtualSensorOutput) -> Result<(), Error<S::Error>> {
         unsafe {
             bsec_reset_output(bsec_virtual_sensor_t::from(sensor) as u8).into_result()?;
@@ -277,6 +398,16 @@ impl<S: BmeSensor, T: Time, B: Borrow<T>> Bsec<S, T, B> {
     }
 }
 
+impl<S: BmeSensor, T: Time, B: Borrow<T>> Drop for Bsec<S, T, B> {
+    fn drop(&mut self) {
+        BSEC_IN_USE.store(false, Ordering::SeqCst);
+    }
+}
+
+/// Return the Bosch BSEC version.
+///
+/// The returned tuple consists of *major*, *minor*, *major bugfix*, and
+/// *minor bugfix* version.
 pub fn get_version() -> Result<(u8, u8, u8, u8), BsecError> {
     let mut version = bsec_version_t {
         major: 0,
@@ -293,12 +424,6 @@ pub fn get_version() -> Result<(u8, u8, u8, u8), BsecError> {
         version.major_bugfix,
         version.minor_bugfix,
     ))
-}
-
-impl<S: BmeSensor, T: Time, B: Borrow<T>> Drop for Bsec<S, T, B> {
-    fn drop(&mut self) {
-        BSEC_IN_USE.store(false, Ordering::SeqCst);
-    }
 }
 
 #[derive(Clone, Debug)]
