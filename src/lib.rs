@@ -41,7 +41,7 @@ impl<'a> BmeSettingsHandle<'a> {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct BmeOutput {
     pub signal: f32,
     pub sensor: PhysicalSensorInput,
@@ -364,7 +364,7 @@ impl From<&RequestedSensorConfiguration> for bsec_sensor_configuration_t {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct RequiredSensorSettings {
     sample_rate: f32,
     sensor: PhysicalSensorInput,
