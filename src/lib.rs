@@ -168,12 +168,6 @@ impl<S: BmeSensor, T: Time, B: Borrow<T>> Bsec<S, T, B> {
                 signal_dimensions: 1,
                 sensor_id: o.sensor.into(),
             })
-            .chain(std::iter::once(bsec_input_t {
-                time_stamp,
-                signal: 6.2,
-                signal_dimensions: 1,
-                sensor_id: PhysicalSensorInput::HeatSource.into(),
-            }))
             .collect();
         let mut outputs = vec![
             bsec_output_t {
