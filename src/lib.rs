@@ -754,17 +754,29 @@ impl<E: Debug> From<ConversionError> for Error<E> {
     }
 }
 
+/// An error converting data between the bsec crate and the underlying Bosch
+/// BSEC library.
 #[derive(Clone, Debug)]
 pub enum ConversionError {
+    /// The sample rate was invalid.
+    ///
+    /// The Bosch BSEC library only supports specific sample rate values.
+    /// See the Bosch BSEC documentation.
     InvalidSampleRate(f64),
+    /// The physical sensor ID was invalid.
     InvalidPhysicalSensorId(bsec_physical_sensor_t),
+    /// The virtual sensor ID was invalid.
     InvalidVirtualSensorId(bsec_virtual_sensor_t),
+    /// The accuracy value was invalid.
+    ///
+    /// The Bosch BSEC library should on report specific accuracy values.
+    /// See the Bosch BSEC documentation.
     InvalidAccuracy(u8),
 }
 
 type BsecResult = Result<(), BsecError>;
 
-pub trait IntoResult {
+trait IntoResult {
     fn into_result(self) -> BsecResult;
 }
 
