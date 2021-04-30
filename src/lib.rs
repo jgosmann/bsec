@@ -426,13 +426,13 @@ pub fn get_version() -> Result<(u8, u8, u8, u8), BsecError> {
     ))
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Output {
     pub next_call: i64,
     pub signals: Vec<OutputSignal>,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct OutputSignal {
     pub timestamp_ns: i64,
     pub signal: f64,
@@ -474,9 +474,11 @@ impl TryFrom<u8> for Accuracy {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct RequestedSensorConfiguration {
+    /// Desired sample rate of the virtual sensor output.
     pub sample_rate: SampleRate,
+    /// Desired virtual output to sample.
     pub sensor: VirtualSensorOutput,
 }
 
