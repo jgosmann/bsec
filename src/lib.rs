@@ -426,19 +426,6 @@ pub fn get_version() -> Result<(u8, u8, u8, u8), BsecError> {
     ))
 }
 
-/// BSEC output
-#[derive(Clone, Debug, PartialEq)]
-pub struct Output {
-    /// Timestamp (nanoseconds) when when the next call to
-    /// [`Bsec::start_next_measurement`] has to be made.
-    ///
-    /// The timestamp is based on the [`Clock`] instance used by [`Bsec`].
-    pub next_call: i64,
-
-    /// Outputs of the BSEC algorithm.
-    pub signals: Vec<OutputSignal>,
-}
-
 /// Single virtual sensor output of the BSEC algorithm.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct OutputSignal {
