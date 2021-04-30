@@ -61,7 +61,7 @@ static BSEC_IN_USE: AtomicBool = AtomicBool::new(false);
 
 /// The bsec crate needs a clock capable of providing nanosecond timestamps.
 /// Implement this trait according to your hardware platform.
-pub trait Time {
+pub trait Clock {
     /// Return a monotonically increasing timestamp with nanosecond resolution.
     ///
     /// The reference point may be arbitrary.
@@ -139,22 +139,22 @@ pub trait BmeSensor {
 }
 
 /// Handle to encapsulates the Bosch BSEC and related state.
-pub struct Bsec<S: BmeSensor, T: Time, B: Borrow<T>> {
+pub struct Bsec<S: BmeSensor, C: Clock, B: Borrow<C>> {
     bme: S,
     subscribed: u32,
     ulp_plus_queue: u32,
     next_measurement: i64,
-    time: B,
-    _time_type: PhantomData<T>,
+    clock: B,
+    _clock_type: PhantomData<C>,
 }
 
-impl<S: BmeSensor, T: Time, B: Borrow<T>> Bsec<S, T, B> {
+impl<S: BmeSensor, C: Clock, B: Borrow<C>> Bsec<S, C, B> {
     /// Initialize the Bosch BSEC library and return a handle to interact with
     /// it.
     ///
     /// * `bme`: [`BmeSensor`] implementation to interact with the BME sensor.
-    /// * `time`: [`Time`] implementation to obtain timestamps.
-    pub fn init(bme: S, time: B) -> Result<Self, Error<S::Error>> {
+    /// * `clock`: [`Clock`] implementation to obtain timestamps.
+    pub fn init(bme: S, clock: B) -> Result<Self, Error<S::Error>> {
         if !BSEC_IN_USE.compare_and_swap(false, true, Ordering::SeqCst) {
             unsafe {
                 bsec_init().into_result()?;
@@ -163,9 +163,9 @@ impl<S: BmeSensor, T: Time, B: Borrow<T>> Bsec<S, T, B> {
                 bme,
                 subscribed: 0,
                 ulp_plus_queue: 0,
-                next_measurement: time.borrow().timestamp_ns(),
-                time,
-                _time_type: PhantomData,
+                next_measurement: clock.borrow().timestamp_ns(),
+                clock,
+                _clock_type: PhantomData,
             })
         } else {
             Err(Error::BsecAlreadyInUse)
@@ -246,7 +246,7 @@ impl<S: BmeSensor, T: Time, B: Borrow<T>> Bsec<S, T, B> {
             trigger_measurement: 0,
         };
         unsafe {
-            bsec_sensor_control(self.time.borrow().timestamp_ns(), &mut bme_settings)
+            bsec_sensor_control(self.clock.borrow().timestamp_ns(), &mut bme_settings)
                 .into_result()
                 .map_err(Error::BsecError)?;
         }
@@ -268,7 +268,7 @@ impl<S: BmeSensor, T: Time, B: Borrow<T>> Bsec<S, T, B> {
     /// Returns a vector of virtual sensor outputs calculated by the Bosch BSEC
     /// library.
     pub fn process_last_measurement(&mut self) -> nb::Result<Vec<OutputSignal>, Error<S::Error>> {
-        let time_stamp = self.time.borrow().timestamp_ns(); // FIXME provide timestamp closer to measurement?
+        let time_stamp = self.clock.borrow().timestamp_ns(); // FIXME provide timestamp closer to measurement?
         let inputs: Vec<bsec_input_t> = self
             .bme
             .get_measurement()
@@ -398,7 +398,7 @@ impl<S: BmeSensor, T: Time, B: Borrow<T>> Bsec<S, T, B> {
     }
 }
 
-impl<S: BmeSensor, T: Time, B: Borrow<T>> Drop for Bsec<S, T, B> {
+impl<S: BmeSensor, C: Clock, B: Borrow<C>> Drop for Bsec<S, C, B> {
     fn drop(&mut self) {
         BSEC_IN_USE.store(false, Ordering::SeqCst);
     }
@@ -432,7 +432,7 @@ pub struct Output {
     /// Timestamp (nanoseconds) when when the next call to
     /// [`Bsec::start_next_measurement`] has to be made.
     ///
-    /// The timestamp is based on the [`Time`] instance used by [`Bsec`].
+    /// The timestamp is based on the [`Clock`] instance used by [`Bsec`].
     pub next_call: i64,
 
     /// Outputs of the BSEC algorithm.
@@ -444,7 +444,7 @@ pub struct Output {
 pub struct OutputSignal {
     /// Timestamp (nanoseconds) of the measurement.
     ///
-    /// This timestamp is based on the [`Time`] instance used by [`Bsec`].
+    /// This timestamp is based on the [`Clock`] instance used by [`Bsec`].
     pub timestamp_ns: i64,
 
     /// Signal value of the virtual sensor.
@@ -940,16 +940,16 @@ pub mod tests {
     }
 
     #[derive(Default)]
-    pub struct FakeTime {
+    pub struct FakeClock {
         timestamp_ns: RefCell<i64>,
     }
-    impl Time for FakeTime {
+    impl Clock for FakeClock {
         fn timestamp_ns(&self) -> i64 {
             *self.timestamp_ns.borrow_mut() += 1;
             *self.timestamp_ns.borrow()
         }
     }
-    impl FakeTime {
+    impl FakeClock {
         pub fn advance_by(&self, duration: Duration) {
             *self.timestamp_ns.borrow_mut() += duration.as_nanos() as i64;
         }
@@ -958,17 +958,17 @@ pub mod tests {
     #[test]
     #[serial]
     fn cannot_create_mulitple_bsec_at_the_same_time() {
-        let time = FakeTime::default();
-        let first: Bsec<_, FakeTime, _> = Bsec::init(FakeBmeSensor::default(), &time).unwrap();
-        assert!(Bsec::<_, FakeTime, _>::init(FakeBmeSensor::default(), &time).is_err());
+        let clock = FakeClock::default();
+        let first: Bsec<_, FakeClock, _> = Bsec::init(FakeBmeSensor::default(), &clock).unwrap();
+        assert!(Bsec::<_, FakeClock, _>::init(FakeBmeSensor::default(), &clock).is_err());
         drop(first);
-        let _another = Bsec::<_, FakeTime, _>::init(FakeBmeSensor::default(), &time).unwrap();
+        let _another = Bsec::<_, FakeClock, _>::init(FakeBmeSensor::default(), &clock).unwrap();
     }
 
     #[test]
     #[serial]
     fn basic_bsec_operation_smoke_test() {
-        let time = FakeTime::default();
+        let clock = FakeClock::default();
         let sensor = FakeBmeSensor::new(Ok(vec![
             BmeOutput {
                 sensor: PhysicalSensorInput::Temperature,
@@ -987,7 +987,7 @@ pub mod tests {
                 signal: 6000.,
             },
         ]));
-        let mut bsec: Bsec<_, FakeTime, _> = Bsec::init(sensor, &time).unwrap();
+        let mut bsec: Bsec<_, FakeClock, _> = Bsec::init(sensor, &clock).unwrap();
         bsec.update_subscription(&[
             RequestedSensorConfiguration {
                 sample_rate: SampleRate::Lp,
@@ -1008,7 +1008,7 @@ pub mod tests {
         ])
         .unwrap();
 
-        time.advance_by(bsec.start_next_measurement().unwrap());
+        clock.advance_by(bsec.start_next_measurement().unwrap());
         let outputs = bsec.process_last_measurement().unwrap();
         assert!(bsec.next_measurement() >= 3_000_000_000);
 
@@ -1050,9 +1050,9 @@ pub mod tests {
     #[test]
     #[serial]
     fn roundtrip_state_smoke_test() {
-        let time = FakeTime::default();
+        let clock = FakeClock::default();
         let sensor = FakeBmeSensor::default();
-        let mut bsec: Bsec<_, FakeTime, _> = Bsec::init(sensor, &time).unwrap();
+        let mut bsec: Bsec<_, FakeClock, _> = Bsec::init(sensor, &clock).unwrap();
         let state = bsec.get_state().unwrap();
         bsec.set_state(&state).unwrap();
     }
@@ -1060,9 +1060,9 @@ pub mod tests {
     #[test]
     #[serial]
     fn configuration_roundtrip_smoke_test() {
-        let time = FakeTime::default();
+        let clock = FakeClock::default();
         let sensor = FakeBmeSensor::default();
-        let mut bsec: Bsec<_, FakeTime, _> = Bsec::init(sensor, &time).unwrap();
+        let mut bsec: Bsec<_, FakeClock, _> = Bsec::init(sensor, &clock).unwrap();
         let config = bsec.get_configuration().unwrap();
         bsec.set_configuration(&config).unwrap();
     }
@@ -1078,9 +1078,9 @@ pub mod tests {
     #[test]
     #[serial]
     fn reset_output_smoke_test() {
-        let time = FakeTime::default();
+        let clock = FakeClock::default();
         let sensor = FakeBmeSensor::default();
-        let mut bsec: Bsec<_, FakeTime, _> = Bsec::init(sensor, &time).unwrap();
+        let mut bsec: Bsec<_, FakeClock, _> = Bsec::init(sensor, &clock).unwrap();
         bsec.reset_output(VirtualSensorOutput::Iaq).unwrap();
     }
 }
