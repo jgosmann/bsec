@@ -426,17 +426,34 @@ pub fn get_version() -> Result<(u8, u8, u8, u8), BsecError> {
     ))
 }
 
+/// BSEC output
 #[derive(Clone, Debug, PartialEq)]
 pub struct Output {
+    /// Timestamp (nanoseconds) when when the next call to
+    /// [`Bsec::start_next_measurement`] has to be made.
+    ///
+    /// The timestamp is based on the [`Time`] instance used by [`Bsec`].
     pub next_call: i64,
+
+    /// Outputs of the BSEC algorithm.
     pub signals: Vec<OutputSignal>,
 }
 
+/// Single virtual sensor output of the BSEC algorithm.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct OutputSignal {
+    /// Timestamp (nanoseconds) of the measurement.
+    ///
+    /// This timestamp is based on the [`Time`] instance used by [`Bsec`].
     pub timestamp_ns: i64,
+
+    /// Signal value of the virtual sensor.
     pub signal: f64,
+
+    /// Type of virtual sensor.
     pub sensor: VirtualSensorOutput,
+
+    /// Accuracy of the virtual sensor.
     pub accuracy: Accuracy,
 }
 
@@ -452,6 +469,7 @@ impl TryFrom<&bsec_output_t> for OutputSignal {
     }
 }
 
+/// Sensor accuracy level
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum Accuracy {
     Unreliable = 0,
@@ -474,6 +492,7 @@ impl TryFrom<u8> for Accuracy {
     }
 }
 
+/// Describes a virtual sensor output to request from the Bosch BSEC library.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct RequestedSensorConfiguration {
     /// Desired sample rate of the virtual sensor output.
@@ -491,9 +510,12 @@ impl From<&RequestedSensorConfiguration> for bsec_sensor_configuration_t {
     }
 }
 
+/// Describes a physical BME sensor that needs to be sampled.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct RequiredSensorSettings {
+    /// Sample rate
     sample_rate: f32,
+    /// Sensor that needs to be sampled
     sensor: PhysicalSensorInput,
 }
 
@@ -509,12 +531,20 @@ impl TryFrom<&bsec_sensor_configuration_t> for RequiredSensorSettings {
     }
 }
 
+/// Valid BSEC sample rates.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum SampleRate {
+    /// Disabled, not being sampled.
     Disabled,
+    /// Ultra-low power, see Bosch BSEC documentation.
     Ulp,
+    /// Continuous mode for testing, see Bosch BSEC documentation.
     Continuous,
+    /// Low power, see Bosch BSEC documentation.
     Lp,
+    /// Perform a single measurement on demand between sampling intervals.
+    ///
+    /// See Bosch BSEC documentation.
     UlpMeasurementOnDemand,
 }
 
@@ -537,13 +567,20 @@ impl From<SampleRate> for f64 {
     }
 }
 
+/// Identifies a physical BME sensor.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum PhysicalSensorInput {
+    /// Pressure sensor.
     Pressure,
+    /// Humidity sensor.
     Humidity,
+    /// Temperature sensor.
     Temperature,
+    /// Gas resistance sensor.
     GasResistor,
+    /// Compensation for nearby heat sources.
     HeatSource,
+    /// Pseudo-sensor to disable the baseline tracker.
     DisableBaselineTracker,
 }
 
@@ -593,6 +630,9 @@ impl From<PhysicalSensorInput> for u8 {
     }
 }
 
+/// Bosch BSEC virtual sensor output.
+///
+/// See Bosch BSEC documentation.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum VirtualSensorOutput {
     Iaq = 0x0001,
@@ -673,12 +713,23 @@ impl TryFrom<u8> for VirtualSensorOutput {
     }
 }
 
+/// BSEC errors.
 #[derive(Clone, Debug)]
 pub enum Error<E: Debug> {
+    /// An variable length vector argument was too long.
+    ///
+    /// Bosch BSEC only supports up to 256 elements in many places.
     ArgumentListTooLong,
+    /// The instance of the BSEC library has already been acquired.
+    ///
+    /// Only a single BSEC instance can be used per application.
     BsecAlreadyInUse,
+    /// An error reported by the Bosch BSEC library.
     BsecError(BsecError),
+    /// An error converting data between the bsec crate and the underlying
+    /// Bosch BSEC library.
     ConversionError(ConversionError),
+    /// An error caused by the BME sensor.
     BmeSensorError(E),
 }
 
@@ -727,6 +778,9 @@ impl IntoResult for bsec_library_return_t {
     }
 }
 
+/// Error reported by the Bosch BSEC library.
+///
+/// See Bosch BSEC documentation.
 #[derive(Clone, Debug)]
 pub enum BsecError {
     DoStepsInvalidInput,
@@ -760,6 +814,7 @@ pub enum BsecError {
     SensorControlCallTimingViolation,
     SensorControlModeExceedsUlpTimelimit,
     SensorControlModeInsufficientWaitTime,
+    /// An error not known by the crate.
     Unknown(bsec_library_return_t),
 }
 
