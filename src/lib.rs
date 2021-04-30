@@ -48,6 +48,8 @@
 //! TODO explain handle to singleton
 //! TODO
 
+use crate::bme::{BmeSensor, BmeSettingsHandle};
+use crate::error::{BsecError, ConversionError, Error};
 use libalgobsec_sys::*;
 use std::borrow::Borrow;
 use std::convert::{From, TryFrom, TryInto};
@@ -56,6 +58,9 @@ use std::hash::Hash;
 use std::marker::PhantomData;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
+
+pub mod bme;
+pub mod error;
 
 static BSEC_IN_USE: AtomicBool = AtomicBool::new(false);
 
@@ -66,76 +71,6 @@ pub trait Clock {
     ///
     /// The reference point may be arbitrary.
     fn timestamp_ns(&self) -> i64;
-}
-
-/// Handle to a struct with settings for the BME sensor.
-pub struct BmeSettingsHandle<'a> {
-    bme_settings: &'a bsec_bme_settings_t,
-}
-
-impl<'a> BmeSettingsHandle<'a> {
-    fn new(bme_settings: &'a bsec_bme_settings_t) -> Self {
-        Self { bme_settings }
-    }
-
-    pub fn heater_temperature(&self) -> u16 {
-        self.bme_settings.heater_temperature
-    }
-
-    pub fn heating_duration(&self) -> u16 {
-        self.bme_settings.heating_duration
-    }
-
-    pub fn run_gas(&self) -> bool {
-        self.bme_settings.run_gas == 1
-    }
-
-    pub fn pressure_oversampling(&self) -> u8 {
-        self.bme_settings.pressure_oversampling
-    }
-
-    pub fn temperature_oversampling(&self) -> u8 {
-        self.bme_settings.temperature_oversampling
-    }
-
-    pub fn humidity_oversampling(&self) -> u8 {
-        self.bme_settings.humidity_oversampling
-    }
-}
-
-/// Encapsulates data read from a BME physical sensor.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct BsecInput {
-    /// The sensor value read.
-    pub signal: f32,
-
-    /// The sensor read.
-    pub sensor: BsecInputKind,
-}
-
-/// Trait to implement for your specific hardware to obtain measurements from
-/// the BME sensor.
-pub trait BmeSensor {
-    /// Error type if an operation with the sensor fails.
-    type Error: Debug;
-
-    /// Start a sensor measurement.
-    ///
-    /// * `settings`: Settings specifying the measurement protocol.
-    ///
-    /// Shoud returns the duration after which the measurement will be available
-    /// or an error.
-    fn start_measurement(&mut self, settings: &BmeSettingsHandle) -> Result<Duration, Self::Error>;
-
-    /// Read a finished sensor measurement.
-    ///
-    /// Returns the sensor measurements as a vector with an item for each
-    /// physical sensor read.
-    ///
-    /// To compensate for heat sources near the sensor add an additional output
-    /// to the vector, using the sensor type [`BsecInputKind::HeatSource`]
-    /// and the desired correction in degrees Celsius.
-    fn get_measurement(&mut self) -> nb::Result<Vec<BsecInput>, Self::Error>;
 }
 
 /// Handle to encapsulates the Bosch BSEC and related state.
@@ -700,75 +635,12 @@ impl TryFrom<u8> for BsecOutputKind {
     }
 }
 
-/// bsec crate errors.
-#[derive(Clone, Debug)]
-pub enum Error<E: Debug> {
-    /// An variable length vector argument was too long.
-    ///
-    /// Bosch BSEC only supports up to 256 elements in many places.
-    ArgumentListTooLong,
-    /// The instance of the BSEC library has already been acquired.
-    ///
-    /// Only a single BSEC instance can be used per application.
-    BsecAlreadyInUse,
-    /// An error reported by the Bosch BSEC library.
-    BsecError(BsecError),
-    /// An error converting data between the bsec crate and the underlying
-    /// Bosch BSEC library.
-    ConversionError(ConversionError),
-    /// An error caused by the BME sensor.
-    BmeSensorError(E),
-}
-
-impl<E: Debug> std::fmt::Display for Error<E> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
-        // TODO
-        f.write_fmt(format_args!("Error {:?}", self))
-    }
-}
-
-impl<E: std::fmt::Debug> std::error::Error for Error<E> {}
-
-impl<E: Debug> From<BsecError> for Error<E> {
-    fn from(bsec_error: BsecError) -> Self {
-        Self::BsecError(bsec_error)
-    }
-}
-
-impl<E: Debug> From<ConversionError> for Error<E> {
-    fn from(conversion_error: ConversionError) -> Self {
-        Self::ConversionError(conversion_error)
-    }
-}
-
-/// An error converting data between the bsec crate and the underlying Bosch
-/// BSEC library.
-#[derive(Clone, Debug)]
-pub enum ConversionError {
-    /// The sample rate was invalid.
-    ///
-    /// The Bosch BSEC library only supports specific sample rate values.
-    /// See the Bosch BSEC documentation.
-    InvalidSampleRate(f64),
-    /// The physical sensor ID was invalid.
-    InvalidPhysicalSensorId(bsec_physical_sensor_t),
-    /// The virtual sensor ID was invalid.
-    InvalidVirtualSensorId(bsec_virtual_sensor_t),
-    /// The accuracy value was invalid.
-    ///
-    /// The Bosch BSEC library should on report specific accuracy values.
-    /// See the Bosch BSEC documentation.
-    InvalidAccuracy(u8),
-}
-
-type BsecResult = Result<(), BsecError>;
-
 trait IntoResult {
-    fn into_result(self) -> BsecResult;
+    fn into_result(self) -> Result<(), BsecError>;
 }
 
 impl IntoResult for bsec_library_return_t {
-    fn into_result(self) -> BsecResult {
+    fn into_result(self) -> Result<(), BsecError> {
         #![allow(non_upper_case_globals)]
         match self {
             bsec_library_return_t_BSEC_OK => Ok(()),
@@ -777,116 +649,10 @@ impl IntoResult for bsec_library_return_t {
     }
 }
 
-/// Error reported by the Bosch BSEC library.
-///
-/// See Bosch BSEC documentation.
-#[derive(Clone, Debug)]
-pub enum BsecError {
-    DoStepsInvalidInput,
-    DoStepsValueLimits,
-    DoStepsDuplicateInput,
-    DoStepsNoOutputsReturnable,
-    DoStepsExcessOutputs,
-    DoStepsTsIntraDiffOutOfRange,
-    UpdateSubscriptionWrongDataRate,
-    UpdateSubscriptionSampleRateLimits,
-    UpdateSubscriptionDuplicateGate,
-    UpdateSubscriptionInvalidSampleRate,
-    UpdateSubscriptionGateCountExceedsArray,
-    UpdateSubscriptionSampleIntervalIntegerMult,
-    UpdateSubscriptionMultGaaSamplInterval,
-    UpdateSubscriptionHighHeaterOnDuration,
-    UpdateSubscriptionUnkownOutputGate,
-    UpdateSubscriptionModeInNonUlp,
-    UpdateSubscriptionSubscribedOutputGates,
-    ParseSectionExceedsWorkBuffer,
-    ConfigFail,
-    ConfigVersionMismatch,
-    ConfigFeatureMismatch,
-    ConfigCrcMismatch,
-    ConfigEmpty,
-    ConfigInsufficientWorkBuffer,
-    ConfigInvalidStringSize,
-    ConfigInsufficientBuffer,
-    SetInvalidChannelIdentifier,
-    SetInvalidLength,
-    SensorControlCallTimingViolation,
-    SensorControlModeExceedsUlpTimelimit,
-    SensorControlModeInsufficientWaitTime,
-    /// An error not known by the crate.
-    Unknown(bsec_library_return_t),
-}
-
-impl From<bsec_library_return_t> for BsecError {
-    fn from(return_code: bsec_library_return_t) -> Self {
-        #![allow(non_upper_case_globals)]
-        use BsecError::*;
-        match return_code {
-            bsec_library_return_t_BSEC_E_DOSTEPS_INVALIDINPUT => DoStepsInvalidInput,
-            bsec_library_return_t_BSEC_E_DOSTEPS_VALUELIMITS => DoStepsValueLimits,
-            bsec_library_return_t_BSEC_E_DOSTEPS_DUPLICATEINPUT => DoStepsDuplicateInput,
-            bsec_library_return_t_BSEC_I_DOSTEPS_NOOUTPUTSRETURNABLE => DoStepsNoOutputsReturnable,
-            bsec_library_return_t_BSEC_W_DOSTEPS_EXCESSOUTPUTS => DoStepsExcessOutputs,
-            bsec_library_return_t_BSEC_W_DOSTEPS_TSINTRADIFFOUTOFRANGE => {
-                DoStepsTsIntraDiffOutOfRange
-            }
-            bsec_library_return_t_BSEC_E_SU_WRONGDATARATE => UpdateSubscriptionWrongDataRate,
-            bsec_library_return_t_BSEC_E_SU_SAMPLERATELIMITS => UpdateSubscriptionSampleRateLimits,
-            bsec_library_return_t_BSEC_E_SU_DUPLICATEGATE => UpdateSubscriptionDuplicateGate,
-            bsec_library_return_t_BSEC_E_SU_INVALIDSAMPLERATE => {
-                UpdateSubscriptionInvalidSampleRate
-            }
-            bsec_library_return_t_BSEC_E_SU_GATECOUNTEXCEEDSARRAY => {
-                UpdateSubscriptionGateCountExceedsArray
-            }
-            bsec_library_return_t_BSEC_E_SU_SAMPLINTVLINTEGERMULT => {
-                UpdateSubscriptionSampleIntervalIntegerMult
-            }
-            bsec_library_return_t_BSEC_E_SU_MULTGASSAMPLINTVL => {
-                UpdateSubscriptionMultGaaSamplInterval
-            }
-            bsec_library_return_t_BSEC_E_SU_HIGHHEATERONDURATION => {
-                UpdateSubscriptionHighHeaterOnDuration
-            }
-            bsec_library_return_t_BSEC_W_SU_UNKNOWNOUTPUTGATE => UpdateSubscriptionUnkownOutputGate,
-            bsec_library_return_t_BSEC_W_SU_MODINNOULP => UpdateSubscriptionModeInNonUlp,
-            bsec_library_return_t_BSEC_I_SU_SUBSCRIBEDOUTPUTGATES => {
-                UpdateSubscriptionSubscribedOutputGates
-            }
-            bsec_library_return_t_BSEC_E_PARSE_SECTIONEXCEEDSWORKBUFFER => {
-                ParseSectionExceedsWorkBuffer
-            }
-            bsec_library_return_t_BSEC_E_CONFIG_FAIL => ConfigFail,
-            bsec_library_return_t_BSEC_E_CONFIG_VERSIONMISMATCH => ConfigVersionMismatch,
-            bsec_library_return_t_BSEC_E_CONFIG_FEATUREMISMATCH => ConfigFeatureMismatch,
-            bsec_library_return_t_BSEC_E_CONFIG_CRCMISMATCH => ConfigCrcMismatch,
-            bsec_library_return_t_BSEC_E_CONFIG_EMPTY => ConfigEmpty,
-            bsec_library_return_t_BSEC_E_CONFIG_INSUFFICIENTWORKBUFFER => {
-                ConfigInsufficientWorkBuffer
-            }
-            bsec_library_return_t_BSEC_E_CONFIG_INVALIDSTRINGSIZE => ConfigInvalidStringSize,
-            bsec_library_return_t_BSEC_E_CONFIG_INSUFFICIENTBUFFER => ConfigInsufficientBuffer,
-            bsec_library_return_t_BSEC_E_SET_INVALIDCHANNELIDENTIFIER => {
-                SetInvalidChannelIdentifier
-            }
-            bsec_library_return_t_BSEC_E_SET_INVALIDLENGTH => SetInvalidLength,
-            bsec_library_return_t_BSEC_W_SC_CALL_TIMING_VIOLATION => {
-                SensorControlCallTimingViolation
-            }
-            bsec_library_return_t_BSEC_W_SC_MODEXCEEDULPTIMELIMIT => {
-                SensorControlModeExceedsUlpTimelimit
-            }
-            bsec_library_return_t_BSEC_W_SC_MODINSUFFICIENTWAITTIME => {
-                SensorControlModeInsufficientWaitTime
-            }
-            return_code => Unknown(return_code),
-        }
-    }
-}
-
 #[cfg(test)]
 pub mod tests {
     use super::*;
+    use crate::bme::BsecInput;
     use serial_test::serial;
     use std::cell::RefCell;
     use std::collections::HashMap;
@@ -903,16 +669,19 @@ pub mod tests {
     pub struct FakeBmeSensor {
         measurement: nb::Result<Vec<BsecInput>, UnitError>,
     }
+
     impl FakeBmeSensor {
         pub fn new(measurement: nb::Result<Vec<BsecInput>, UnitError>) -> Self {
             Self { measurement }
         }
     }
+
     impl Default for FakeBmeSensor {
         fn default() -> Self {
             Self::new(Ok(vec![]))
         }
     }
+
     impl BmeSensor for FakeBmeSensor {
         type Error = UnitError;
         fn start_measurement(
