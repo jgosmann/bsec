@@ -22,6 +22,8 @@
 //!
 //! ## Getting started
 //!
+//! ### Setup paths to the Bosch BSEC library
+//!
 //! To be able to use this crate it needs to know where to find the Bosch BSEC
 //! header files and library on your system. These paths are provided as the
 //! configuration options `besc_include_path` and `bsec_library_path` to the
@@ -42,13 +44,198 @@
 //! [libalgobsec-sys](https://crates.io/crates/libalgobsec-sys) providing the
 //! actual low-level bindings.)
 //!
-//! ## Example
+//! ### Implement necessary traits
+//!
+//! To be able to use the bsec crate, you have to implement the [`Clock`] and
+//! [`BmeSensor`] traits
+//!
+//! #### Clock
+//!
+//! The [`Clock`] traits allows the BSEC algorithm to obtain timestamps to
+//! schedule sensor measurements accordingly. Your implementation might depend
+//! on your hardware platform. A possible implementation based on [`std::time`]
+//! could look like this:
+//!
+//! ```
+//! use bsec::clock::Clock;
+//! use std::time::{Duration, Instant};
+//!
+//! pub struct TimePassed {
+//!     start: Instant,
+//! }
+//!
+//! impl Clock for TimePassed {
+//!     fn timestamp_ns(&self) -> i64 {
+//!         Instant::now().duration_since(self.start).as_nanos() as i64
+//!     }
+//! }
+//! ```
+//!
+//! #### BmeSensor
+//!
+//! The [`BmeSensor`] trait allows the BSEC algorithm to communicate with your
+//! BME sensor and obtain measurements. An implementation using the BME680
+//! sensor with the [bme680](https://crates.io/crates/bme680) crate might
+//! look like this:
+//!
+//! ```
+//! use bme680::{Bme680, OversamplingSetting, PowerMode, SettingsBuilder};
+//! use bsec::BsecInputKind;
+//! use bsec::bme::{BmeSensor, BmeSettingsHandle, BsecInput};
+//! use embedded_hal::blocking::{delay::DelayMs, i2c};
+//! use std::fmt::Debug;
+//! use std::time::Duration;
+//!
+//! pub struct Bme680Sensor<I2C, D>
+//! where
+//!     D: DelayMs<u8>,
+//!     I2C: i2c::Read + i2c::Write
+//! {
+//!     bme680: Bme680<I2C, D>,
+//! }
+//!
+//! impl<I2C, D> BmeSensor for Bme680Sensor<I2C, D>
+//! where
+//!     D: DelayMs<u8>,
+//!     I2C: i2c::Read + i2c::Write,
+//!     <I2C as i2c::Read>::Error: Debug,
+//!     <I2C as i2c::Write>::Error: Debug,
+//! {
+//!     type Error = bme680::Error<<I2C as i2c::Read>::Error, <I2C as i2c::Write>::Error>;
+//!
+//!     fn start_measurement(
+//!         &mut self,
+//!         settings: &BmeSettingsHandle,
+//!     ) -> Result<std::time::Duration, Self::Error> {
+//!         let settings = SettingsBuilder::new()
+//!             .with_humidity_oversampling(OversamplingSetting::from_u8(
+//!                 settings.humidity_oversampling(),
+//!             ))
+//!             .with_temperature_oversampling(OversamplingSetting::from_u8(
+//!                 settings.temperature_oversampling(),
+//!             ))
+//!             .with_pressure_oversampling(OversamplingSetting::from_u8(
+//!                 settings.pressure_oversampling(),
+//!             ))
+//!             .with_run_gas(settings.run_gas())
+//!             .with_gas_measurement(
+//!                 Duration::from_millis(settings.heating_duration().into()),
+//!                 settings.heater_temperature(),
+//!                 20,
+//!             )
+//!             .build();
+//!         self.bme680
+//!             .set_sensor_settings(settings)?;
+//!         let profile_duration = self.bme680.get_profile_dur(&settings.0)?;
+//!         self.bme680.set_sensor_mode(PowerMode::ForcedMode)?;
+//!         Ok(profile_duration)
+//!     }
+//!
+//!     fn get_measurement(&mut self) -> nb::Result<Vec<BsecInput>, Self::Error> {
+//!         let (data, _state) = self.bme680.get_sensor_data()?;
+//!         Ok(vec![
+//!             BsecInput {
+//!                 sensor: BsecInputKind::Temperature,
+//!                 signal: data.temperature_celsius(),
+//!             },
+//!             BsecInput {
+//!                 sensor: BsecInputKind::Pressure,
+//!                 signal: data.pressure_hpa(),
+//!             },
+//!             BsecInput {
+//!                 sensor: BsecInputKind::Humidity,
+//!                 signal: data.humidity_percent(),
+//!             },
+//!             BsecInput {
+//!                 sensor: BsecInputKind::GasResistor,
+//!                 signal: data.gas_resistance_ohm() as f32,
+//!             },
+//!         ])
+//!     }
+//! }
+//! ```
+//!
+//! ### Usage
+//!
+//! ```
+//! use bsec::{Bsec, bme::BsecInput, BsecInputKind, BsecOutputKind, clock::Clock, SampleRate, SubscriptionRequest};
+//! use nb::block;
+//! use std::time::Duration;
+//! #
+//! # #[cfg(not(feature = "test_support"))]
+//! # fn main() { panic!("doctests must be run with `test_support` feature.") }
+//! #
+//! # #[cfg(feature = "test_support")]
+//! # type TimePassed = bsec::clock::test_support::FakeClock;
+//! #
+//! # fn sleep_for(duration: Duration) -> () {}
+//! #
+//! # #[cfg(feature = "test_support")]
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! #
+//! # let clock = TimePassed::default();
+//! # let sensor = bsec::bme::test_support::FakeBmeSensor::new(Ok(vec![
+//! #    BsecInput {
+//! #        sensor: BsecInputKind::Temperature,
+//! #         signal: 22.,
+//! #     },
+//! #     BsecInput {
+//! #         sensor: BsecInputKind::Humidity,
+//! #         signal: 40.,
+//! #     },
+//! #     BsecInput {
+//! #         sensor: BsecInputKind::Pressure,
+//! #         signal: 1000.,
+//! #     },
+//! #     BsecInput {
+//! #         sensor: BsecInputKind::GasResistor,
+//! #         signal: 6000.,
+//! #     },
+//! # ]));
+//!
+//! // Acquire handle to the BSEC library.
+//! // Only one such handle can be acquired at any time.
+//! let mut bsec: Bsec<_, TimePassed, _> = Bsec::init(sensor, &clock)?;
+//!
+//! // Configure the outputs you want to subscribe to.
+//! bsec.update_subscription(&[
+//!     SubscriptionRequest {
+//!         sample_rate: SampleRate::Lp,
+//!         sensor: BsecOutputKind::Iaq,
+//!     },
+//! ])?;
+//!
+//! // We need to feed BSEC regularly with new measurements.
+//! loop {
+//!     // Wait for when the next measurement is due.
+//!     sleep_for(Duration::from_nanos((bsec.next_measurement() - clock.timestamp_ns()) as u64));
+//!
+//!     // Start the measurement.
+//!     let wait_duration = block!(bsec.start_next_measurement())?;
+//!     sleep_for(wait_duration);
+//!     # clock.advance_by(wait_duration);  // FIXME hide
+//!
+//!     // Process the measurement when ready and print the BSEC outputs.
+//!     let outputs = block!(bsec.process_last_measurement())?;
+//!     for output in &outputs {
+//!         println!("{:?}: {}", output.sensor, output.signal);
+//!     }
+//! #
+//! #   let signals: std::collections::HashMap<bsec::BsecOutputKind, &bsec::BsecOutput> =
+//! #       outputs.iter().map(|s| (s.sensor, s)).collect();
+//! #   assert!(
+//! #       (signals.get(&bsec::BsecOutputKind::Iaq).unwrap().signal - 25.).abs()
+//! #           < f64::EPSILON
+//! #   );
+//! #   return Ok(())
+//! }
+//! # }
+//! ```
 //!
 //! TODO explain physical and virtual sensor (output)
-//! TODO explain handle to singleton
-//! TODO
 
 use crate::bme::{BmeSensor, BmeSettingsHandle};
+use crate::clock::Clock;
 use crate::error::{BsecError, ConversionError, Error};
 use libalgobsec_sys::*;
 use std::borrow::Borrow;
@@ -60,18 +247,10 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 pub mod bme;
+pub mod clock;
 pub mod error;
 
 static BSEC_IN_USE: AtomicBool = AtomicBool::new(false);
-
-/// The bsec crate needs a clock capable of providing nanosecond timestamps.
-/// Implement this trait according to your hardware platform.
-pub trait Clock {
-    /// Return a monotonically increasing timestamp with nanosecond resolution.
-    ///
-    /// The reference point may be arbitrary.
-    fn timestamp_ns(&self) -> i64;
-}
 
 /// Handle to encapsulates the Bosch BSEC and related state.
 pub struct Bsec<S: BmeSensor, C: Clock, B: Borrow<C>> {
@@ -652,64 +831,10 @@ impl IntoResult for bsec_library_return_t {
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use crate::bme::BsecInput;
+    use crate::bme::{test_support::FakeBmeSensor, BsecInput};
+    use crate::clock::test_support::FakeClock;
     use serial_test::serial;
-    use std::cell::RefCell;
     use std::collections::HashMap;
-
-    #[derive(Copy, Clone, Debug)]
-    pub struct UnitError;
-    impl std::error::Error for UnitError {}
-    impl std::fmt::Display for UnitError {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
-            f.write_fmt(format_args!("{:?}", self))
-        }
-    }
-
-    pub struct FakeBmeSensor {
-        measurement: nb::Result<Vec<BsecInput>, UnitError>,
-    }
-
-    impl FakeBmeSensor {
-        pub fn new(measurement: nb::Result<Vec<BsecInput>, UnitError>) -> Self {
-            Self { measurement }
-        }
-    }
-
-    impl Default for FakeBmeSensor {
-        fn default() -> Self {
-            Self::new(Ok(vec![]))
-        }
-    }
-
-    impl BmeSensor for FakeBmeSensor {
-        type Error = UnitError;
-        fn start_measurement(
-            &mut self,
-            _: &BmeSettingsHandle<'_>,
-        ) -> Result<std::time::Duration, UnitError> {
-            Ok(std::time::Duration::new(0, 0))
-        }
-        fn get_measurement(&mut self) -> nb::Result<Vec<BsecInput>, UnitError> {
-            self.measurement.clone()
-        }
-    }
-
-    #[derive(Default)]
-    pub struct FakeClock {
-        timestamp_ns: RefCell<i64>,
-    }
-    impl Clock for FakeClock {
-        fn timestamp_ns(&self) -> i64 {
-            *self.timestamp_ns.borrow_mut() += 1;
-            *self.timestamp_ns.borrow()
-        }
-    }
-    impl FakeClock {
-        pub fn advance_by(&self, duration: Duration) {
-            *self.timestamp_ns.borrow_mut() += duration.as_nanos() as i64;
-        }
-    }
 
     #[test]
     #[serial]

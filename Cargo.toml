@@ -11,4 +11,9 @@ libalgobsec-sys = "0.1.0"
 nb = "1.0.0"
 
 [dev-dependencies]
+bme680 = "0.5.1"
+embedded-hal = "0.2.5"
 serial_test = "0.5.1"
+
+[features]
+test_support = []
