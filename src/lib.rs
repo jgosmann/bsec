@@ -80,8 +80,8 @@
 //!
 //! ```
 //! use bme680::{Bme680, OversamplingSetting, PowerMode, SettingsBuilder};
-//! use bsec::BsecInputKind;
-//! use bsec::bme::{BmeSensor, BmeSettingsHandle, BsecInput};
+//! use bsec::{Input, InputKind};
+//! use bsec::bme::{BmeSensor, BmeSettingsHandle};
 //! use embedded_hal::blocking::{delay::DelayMs, i2c};
 //! use std::fmt::Debug;
 //! use std::time::Duration;
@@ -131,23 +131,23 @@
 //!         Ok(profile_duration)
 //!     }
 //!
-//!     fn get_measurement(&mut self) -> nb::Result<Vec<BsecInput>, Self::Error> {
+//!     fn get_measurement(&mut self) -> nb::Result<Vec<Input>, Self::Error> {
 //!         let (data, _state) = self.bme680.get_sensor_data()?;
 //!         Ok(vec![
-//!             BsecInput {
-//!                 sensor: BsecInputKind::Temperature,
+//!             Input {
+//!                 sensor: InputKind::Temperature,
 //!                 signal: data.temperature_celsius(),
 //!             },
-//!             BsecInput {
-//!                 sensor: BsecInputKind::Pressure,
+//!             Input {
+//!                 sensor: InputKind::Pressure,
 //!                 signal: data.pressure_hpa(),
 //!             },
-//!             BsecInput {
-//!                 sensor: BsecInputKind::Humidity,
+//!             Input {
+//!                 sensor: InputKind::Humidity,
 //!                 signal: data.humidity_percent(),
 //!             },
-//!             BsecInput {
-//!                 sensor: BsecInputKind::GasResistor,
+//!             Input {
+//!                 sensor: InputKind::GasResistor,
 //!                 signal: data.gas_resistance_ohm() as f32,
 //!             },
 //!         ])
@@ -158,7 +158,7 @@
 //! ### Usage
 //!
 //! ```
-//! use bsec::{Bsec, bme::BsecInput, BsecInputKind, BsecOutputKind, clock::Clock, SampleRate, SubscriptionRequest};
+//! use bsec::{Bsec, Input, InputKind, OutputKind, clock::Clock, SampleRate, SubscriptionRequest};
 //! use nb::block;
 //! use std::time::Duration;
 //! #
@@ -175,20 +175,20 @@
 //! #
 //! # let clock = TimePassed::default();
 //! # let sensor = bsec::bme::test_support::FakeBmeSensor::new(Ok(vec![
-//! #    BsecInput {
-//! #        sensor: BsecInputKind::Temperature,
+//! #    Input {
+//! #         sensor: InputKind::Temperature,
 //! #         signal: 22.,
 //! #     },
-//! #     BsecInput {
-//! #         sensor: BsecInputKind::Humidity,
+//! #     Input {
+//! #         sensor: InputKind::Humidity,
 //! #         signal: 40.,
 //! #     },
-//! #     BsecInput {
-//! #         sensor: BsecInputKind::Pressure,
+//! #     Input {
+//! #         sensor: InputKind::Pressure,
 //! #         signal: 1000.,
 //! #     },
-//! #     BsecInput {
-//! #         sensor: BsecInputKind::GasResistor,
+//! #     Input {
+//! #         sensor: InputKind::GasResistor,
 //! #         signal: 6000.,
 //! #     },
 //! # ]));
@@ -201,7 +201,7 @@
 //! bsec.update_subscription(&[
 //!     SubscriptionRequest {
 //!         sample_rate: SampleRate::Lp,
-//!         sensor: BsecOutputKind::Iaq,
+//!         sensor: OutputKind::Iaq,
 //!     },
 //! ])?;
 //!
@@ -221,10 +221,10 @@
 //!         println!("{:?}: {}", output.sensor, output.signal);
 //!     }
 //! #
-//! #   let signals: std::collections::HashMap<bsec::BsecOutputKind, &bsec::BsecOutput> =
+//! #   let signals: std::collections::HashMap<bsec::OutputKind, &bsec::Output> =
 //! #       outputs.iter().map(|s| (s.sensor, s)).collect();
 //! #   assert!(
-//! #       (signals.get(&bsec::BsecOutputKind::Iaq).unwrap().signal - 25.).abs()
+//! #       (signals.get(&bsec::OutputKind::Iaq).unwrap().signal - 25.).abs()
 //! #           < f64::EPSILON
 //! #   );
 //! #   return Ok(())
@@ -296,7 +296,7 @@ impl<S: BmeSensor, C: Clock, B: Borrow<C>> Bsec<S, C, B> {
     pub fn update_subscription(
         &mut self,
         requests: &[SubscriptionRequest],
-    ) -> Result<Vec<RequiredBsecInput>, Error<S::Error>> {
+    ) -> Result<Vec<RequiredInput>, Error<S::Error>> {
         let bsec_requested_outputs: Vec<bsec_sensor_configuration_t> =
             requests.iter().map(From::from).collect();
         let mut required_sensor_settings = [bsec_sensor_configuration_t {
@@ -334,7 +334,7 @@ impl<S: BmeSensor, C: Clock, B: Borrow<C>> Bsec<S, C, B> {
         Ok(required_sensor_settings
             .iter()
             .take(n_required_sensor_settings as usize)
-            .filter_map(|x| RequiredBsecInput::try_from(x).ok())
+            .filter_map(|x| RequiredInput::try_from(x).ok())
             .collect())
     }
 
@@ -381,7 +381,7 @@ impl<S: BmeSensor, C: Clock, B: Borrow<C>> Bsec<S, C, B> {
     ///
     /// Returns a vector of virtual sensor outputs calculated by the Bosch BSEC
     /// library.
-    pub fn process_last_measurement(&mut self) -> nb::Result<Vec<BsecOutput>, Error<S::Error>> {
+    pub fn process_last_measurement(&mut self) -> nb::Result<Vec<Output>, Error<S::Error>> {
         let time_stamp = self.clock.borrow().timestamp_ns(); // FIXME provide timestamp closer to measurement?
         let inputs: Vec<bsec_input_t> = self
             .bme
@@ -424,10 +424,10 @@ impl<S: BmeSensor, C: Clock, B: Borrow<C>> Bsec<S, C, B> {
             .map_err(Error::BsecError)?;
         }
 
-        let signals: Result<Vec<BsecOutput>, Error<S::Error>> = outputs
+        let signals: Result<Vec<Output>, Error<S::Error>> = outputs
             .iter()
             .take(num_outputs.into())
-            .map(|x| BsecOutput::try_from(x).map_err(Error::<S::Error>::from))
+            .map(|x| Output::try_from(x).map_err(Error::<S::Error>::from))
             .collect();
         Ok(signals?)
     }
@@ -504,7 +504,7 @@ impl<S: BmeSensor, C: Clock, B: Borrow<C>> Bsec<S, C, B> {
     }
 
     /// See documentation of `bsec_reset_output` in the Bosch BSEC documentation.
-    pub fn reset_output(&mut self, sensor: BsecOutputKind) -> Result<(), Error<S::Error>> {
+    pub fn reset_output(&mut self, sensor: OutputKind) -> Result<(), Error<S::Error>> {
         unsafe {
             bsec_reset_output(bsec_virtual_sensor_t::from(sensor) as u8).into_result()?;
         }
@@ -540,9 +540,19 @@ pub fn get_version() -> Result<(u8, u8, u8, u8), BsecError> {
     ))
 }
 
+/// Encapsulates data read from a BME physical sensor.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Input {
+    /// The sensor value read.
+    pub signal: f32,
+
+    /// The sensor read.
+    pub sensor: InputKind,
+}
+
 /// Single virtual sensor output of the BSEC algorithm.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct BsecOutput {
+pub struct Output {
     /// Timestamp (nanoseconds) of the measurement.
     ///
     /// This timestamp is based on the [`Clock`] instance used by [`Bsec`].
@@ -552,13 +562,13 @@ pub struct BsecOutput {
     pub signal: f64,
 
     /// Type of virtual sensor.
-    pub sensor: BsecOutputKind,
+    pub sensor: OutputKind,
 
     /// Accuracy of the virtual sensor.
     pub accuracy: Accuracy,
 }
 
-impl TryFrom<&bsec_output_t> for BsecOutput {
+impl TryFrom<&bsec_output_t> for Output {
     type Error = ConversionError;
     fn try_from(output: &bsec_output_t) -> Result<Self, ConversionError> {
         Ok(Self {
@@ -599,7 +609,7 @@ pub struct SubscriptionRequest {
     /// Desired sample rate of the virtual sensor output.
     pub sample_rate: SampleRate,
     /// Desired virtual output to sample.
-    pub sensor: BsecOutputKind,
+    pub sensor: OutputKind,
 }
 
 impl From<&SubscriptionRequest> for bsec_sensor_configuration_t {
@@ -613,21 +623,21 @@ impl From<&SubscriptionRequest> for bsec_sensor_configuration_t {
 
 /// Describes a physical BME sensor that needs to be sampled.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct RequiredBsecInput {
+pub struct RequiredInput {
     /// Sample rate
     pub sample_rate: f32,
     /// Sensor that needs to be sampled
-    pub sensor: BsecInputKind,
+    pub sensor: InputKind,
 }
 
-impl TryFrom<&bsec_sensor_configuration_t> for RequiredBsecInput {
+impl TryFrom<&bsec_sensor_configuration_t> for RequiredInput {
     type Error = ConversionError;
     fn try_from(
         sensor_configuration: &bsec_sensor_configuration_t,
     ) -> Result<Self, ConversionError> {
         Ok(Self {
             sample_rate: sensor_configuration.sample_rate,
-            sensor: BsecInputKind::try_from(sensor_configuration.sensor_id)?,
+            sensor: InputKind::try_from(sensor_configuration.sensor_id)?,
         })
     }
 }
@@ -670,7 +680,7 @@ impl From<SampleRate> for f64 {
 
 /// Identifies a physical BME sensor.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub enum BsecInputKind {
+pub enum InputKind {
     /// Pressure sensor.
     Pressure,
     /// Humidity sensor.
@@ -685,18 +695,18 @@ pub enum BsecInputKind {
     DisableBaselineTracker,
 }
 
-impl TryFrom<u8> for BsecInputKind {
+impl TryFrom<u8> for InputKind {
     type Error = ConversionError;
     fn try_from(physical_sensor: u8) -> Result<Self, ConversionError> {
         Self::try_from(physical_sensor as u32)
     }
 }
 
-impl TryFrom<u32> for BsecInputKind {
+impl TryFrom<u32> for InputKind {
     type Error = ConversionError;
     fn try_from(physical_sensor: u32) -> Result<Self, ConversionError> {
         #![allow(non_upper_case_globals)]
-        use BsecInputKind::*;
+        use InputKind::*;
         match physical_sensor {
             bsec_physical_sensor_t_BSEC_INPUT_PRESSURE => Ok(Pressure),
             bsec_physical_sensor_t_BSEC_INPUT_HUMIDITY => Ok(Humidity),
@@ -711,9 +721,9 @@ impl TryFrom<u32> for BsecInputKind {
     }
 }
 
-impl From<BsecInputKind> for bsec_physical_sensor_t {
-    fn from(physical_sensor: BsecInputKind) -> Self {
-        use BsecInputKind::*;
+impl From<InputKind> for bsec_physical_sensor_t {
+    fn from(physical_sensor: InputKind) -> Self {
+        use InputKind::*;
         match physical_sensor {
             Pressure => bsec_physical_sensor_t_BSEC_INPUT_PRESSURE,
             Humidity => bsec_physical_sensor_t_BSEC_INPUT_HUMIDITY,
@@ -725,8 +735,8 @@ impl From<BsecInputKind> for bsec_physical_sensor_t {
     }
 }
 
-impl From<BsecInputKind> for u8 {
-    fn from(physical_sensor: BsecInputKind) -> Self {
+impl From<InputKind> for u8 {
+    fn from(physical_sensor: InputKind) -> Self {
         bsec_physical_sensor_t::from(physical_sensor) as Self
     }
 }
@@ -735,7 +745,7 @@ impl From<BsecInputKind> for u8 {
 ///
 /// See Bosch BSEC documentation.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub enum BsecOutputKind {
+pub enum OutputKind {
     Iaq = 0x0001,
     StaticIaq = 0x0002,
     Co2Equivalent = 0x0004,
@@ -752,9 +762,9 @@ pub enum BsecOutputKind {
     GasPercentage = 0x2000,
 }
 
-impl From<BsecOutputKind> for bsec_virtual_sensor_t {
-    fn from(virtual_sensor: BsecOutputKind) -> Self {
-        use BsecOutputKind::*;
+impl From<OutputKind> for bsec_virtual_sensor_t {
+    fn from(virtual_sensor: OutputKind) -> Self {
+        use OutputKind::*;
         match virtual_sensor {
             Iaq => bsec_virtual_sensor_t_BSEC_OUTPUT_IAQ,
             StaticIaq => bsec_virtual_sensor_t_BSEC_OUTPUT_STATIC_IAQ,
@@ -778,11 +788,11 @@ impl From<BsecOutputKind> for bsec_virtual_sensor_t {
     }
 }
 
-impl TryFrom<bsec_virtual_sensor_t> for BsecOutputKind {
+impl TryFrom<bsec_virtual_sensor_t> for OutputKind {
     type Error = ConversionError;
     fn try_from(virtual_sensor: bsec_virtual_sensor_t) -> Result<Self, ConversionError> {
         #![allow(non_upper_case_globals)]
-        use BsecOutputKind::*;
+        use OutputKind::*;
         match virtual_sensor {
             bsec_virtual_sensor_t_BSEC_OUTPUT_IAQ => Ok(Iaq),
             bsec_virtual_sensor_t_BSEC_OUTPUT_STATIC_IAQ => Ok(StaticIaq),
@@ -807,7 +817,7 @@ impl TryFrom<bsec_virtual_sensor_t> for BsecOutputKind {
     }
 }
 
-impl TryFrom<u8> for BsecOutputKind {
+impl TryFrom<u8> for OutputKind {
     type Error = ConversionError;
     fn try_from(virtual_sensor: u8) -> Result<Self, ConversionError> {
         Self::try_from(virtual_sensor as bsec_virtual_sensor_t)
@@ -831,7 +841,7 @@ impl IntoResult for bsec_library_return_t {
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use crate::bme::{test_support::FakeBmeSensor, BsecInput};
+    use crate::bme::test_support::FakeBmeSensor;
     use crate::clock::test_support::FakeClock;
     use serial_test::serial;
     use std::collections::HashMap;
@@ -851,20 +861,20 @@ pub mod tests {
     fn basic_bsec_operation_smoke_test() {
         let clock = FakeClock::default();
         let sensor = FakeBmeSensor::new(Ok(vec![
-            BsecInput {
-                sensor: BsecInputKind::Temperature,
+            Input {
+                sensor: InputKind::Temperature,
                 signal: 22.,
             },
-            BsecInput {
-                sensor: BsecInputKind::Humidity,
+            Input {
+                sensor: InputKind::Humidity,
                 signal: 40.,
             },
-            BsecInput {
-                sensor: BsecInputKind::Pressure,
+            Input {
+                sensor: InputKind::Pressure,
                 signal: 1000.,
             },
-            BsecInput {
-                sensor: BsecInputKind::GasResistor,
+            Input {
+                sensor: InputKind::GasResistor,
                 signal: 6000.,
             },
         ]));
@@ -872,19 +882,19 @@ pub mod tests {
         bsec.update_subscription(&[
             SubscriptionRequest {
                 sample_rate: SampleRate::Lp,
-                sensor: BsecOutputKind::RawTemperature,
+                sensor: OutputKind::RawTemperature,
             },
             SubscriptionRequest {
                 sample_rate: SampleRate::Lp,
-                sensor: BsecOutputKind::RawHumidity,
+                sensor: OutputKind::RawHumidity,
             },
             SubscriptionRequest {
                 sample_rate: SampleRate::Lp,
-                sensor: BsecOutputKind::RawPressure,
+                sensor: OutputKind::RawPressure,
             },
             SubscriptionRequest {
                 sample_rate: SampleRate::Lp,
-                sensor: BsecOutputKind::RawGas,
+                sensor: OutputKind::RawGas,
             },
         ])
         .unwrap();
@@ -893,22 +903,15 @@ pub mod tests {
         let outputs = bsec.process_last_measurement().unwrap();
         assert!(bsec.next_measurement() >= 3_000_000_000);
 
-        let signals: HashMap<BsecOutputKind, &BsecOutput> =
-            outputs.iter().map(|s| (s.sensor, s)).collect();
+        let signals: HashMap<OutputKind, &Output> = outputs.iter().map(|s| (s.sensor, s)).collect();
         assert!(
-            (signals.get(&BsecOutputKind::RawTemperature).unwrap().signal - 22.).abs()
-                < f64::EPSILON
+            (signals.get(&OutputKind::RawTemperature).unwrap().signal - 22.).abs() < f64::EPSILON
         );
+        assert!((signals.get(&OutputKind::RawHumidity).unwrap().signal - 40.).abs() < f64::EPSILON);
         assert!(
-            (signals.get(&BsecOutputKind::RawHumidity).unwrap().signal - 40.).abs() < f64::EPSILON
+            (signals.get(&OutputKind::RawPressure).unwrap().signal - 1000.).abs() < f64::EPSILON
         );
-        assert!(
-            (signals.get(&BsecOutputKind::RawPressure).unwrap().signal - 1000.).abs()
-                < f64::EPSILON
-        );
-        assert!(
-            (signals.get(&BsecOutputKind::RawGas).unwrap().signal - 6000.).abs() < f64::EPSILON
-        );
+        assert!((signals.get(&OutputKind::RawGas).unwrap().signal - 6000.).abs() < f64::EPSILON);
     }
 
     #[test]
@@ -945,6 +948,6 @@ pub mod tests {
         let clock = FakeClock::default();
         let sensor = FakeBmeSensor::default();
         let mut bsec: Bsec<_, FakeClock, _> = Bsec::init(sensor, &clock).unwrap();
-        bsec.reset_output(BsecOutputKind::Iaq).unwrap();
+        bsec.reset_output(OutputKind::Iaq).unwrap();
     }
 }

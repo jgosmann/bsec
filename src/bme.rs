@@ -1,6 +1,6 @@
 //! TODO
 
-use super::BsecInputKind;
+use super::Input;
 use libalgobsec_sys::bsec_bme_settings_t;
 use std::{fmt::Debug, time::Duration};
 
@@ -41,16 +41,6 @@ impl<'a> BmeSettingsHandle<'a> {
     }
 }
 
-/// Encapsulates data read from a BME physical sensor.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct BsecInput {
-    /// The sensor value read.
-    pub signal: f32,
-
-    /// The sensor read.
-    pub sensor: BsecInputKind,
-}
-
 /// Trait to implement for your specific hardware to obtain measurements from
 /// the BME sensor.
 ///
@@ -75,7 +65,7 @@ pub trait BmeSensor {
     /// To compensate for heat sources near the sensor add an additional output
     /// to the vector, using the sensor type [`BsecInputKind::HeatSource`]
     /// and the desired correction in degrees Celsius.
-    fn get_measurement(&mut self) -> nb::Result<Vec<BsecInput>, Self::Error>;
+    fn get_measurement(&mut self) -> nb::Result<Vec<Input>, Self::Error>;
 }
 
 #[cfg(any(test, feature = "test_support"))]
@@ -94,11 +84,11 @@ pub mod test_support {
     }
 
     pub struct FakeBmeSensor {
-        measurement: nb::Result<Vec<BsecInput>, UnitError>,
+        measurement: nb::Result<Vec<Input>, UnitError>,
     }
 
     impl FakeBmeSensor {
-        pub fn new(measurement: nb::Result<Vec<BsecInput>, UnitError>) -> Self {
+        pub fn new(measurement: nb::Result<Vec<Input>, UnitError>) -> Self {
             Self { measurement }
         }
     }
@@ -117,7 +107,7 @@ pub mod test_support {
         ) -> Result<std::time::Duration, UnitError> {
             Ok(std::time::Duration::new(0, 0))
         }
-        fn get_measurement(&mut self) -> nb::Result<Vec<BsecInput>, UnitError> {
+        fn get_measurement(&mut self) -> nb::Result<Vec<Input>, UnitError> {
             self.measurement.clone()
         }
     }
