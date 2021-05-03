@@ -1,9 +1,7 @@
-//! TODO
+//! Error types
 
 use libalgobsec_sys::*;
-use std::fmt::Debug;
-
-// TODO impl error traits
+use std::fmt::{self, Debug, Display, Formatter};
 
 /// bsec crate errors.
 #[derive(Clone, Debug)]
@@ -25,14 +23,25 @@ pub enum Error<E: Debug> {
     BmeSensorError(E),
 }
 
-impl<E: Debug> std::fmt::Display for Error<E> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
-        // TODO
-        f.write_fmt(format_args!("Error {:?}", self))
+impl<E: Debug> Display for Error<E> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), fmt::Error> {
+        use Error::*;
+        match self {
+            ArgumentListTooLong => f.write_str("argument list to BSEC too long"),
+            BsecAlreadyInUse => f.write_str("the BSEC instances has already been acquired"),
+            BsecError(err) => f.write_fmt(format_args!("BSEC library error: {}", err)),
+            ConversionError(err) => {
+                f.write_fmt(format_args!("unexpected BSEC return value: {}", err))
+            }
+            BmeSensorError(err) => f.write_fmt(format_args!(
+                "communication failure with BME sensor: {:?}",
+                err
+            )),
+        }
     }
 }
 
-impl<E: std::fmt::Debug> std::error::Error for Error<E> {}
+impl<E: Debug> std::error::Error for Error<E> {}
 
 impl<E: Debug> From<BsecError> for Error<E> {
     fn from(bsec_error: BsecError) -> Self {
@@ -65,6 +74,24 @@ pub enum ConversionError {
     /// See the Bosch BSEC documentation.
     InvalidAccuracy(u8),
 }
+
+impl Display for ConversionError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        use ConversionError::*;
+        match self {
+            InvalidSampleRate(x) => f.write_fmt(format_args!("invalid sample rate: {}", x)),
+            InvalidPhysicalSensorId(x) => {
+                f.write_fmt(format_args!("invalid physical sensor ID: {}", x))
+            }
+            InvalidVirtualSensorId(x) => {
+                f.write_fmt(format_args!("invalid virtual sensor ID: {}", x))
+            }
+            InvalidAccuracy(x) => f.write_fmt(format_args!("invalid accuracy: {}", x)),
+        }
+    }
+}
+
+impl std::error::Error for ConversionError {}
 
 /// Error reported by the Bosch BSEC library.
 ///
@@ -105,6 +132,14 @@ pub enum BsecError {
     /// An error not known by the crate.
     Unknown(bsec_library_return_t),
 }
+
+impl Display for BsecError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.write_fmt(format_args!("BSEC error: {:?}", self))
+    }
+}
+
+impl std::error::Error for BsecError {}
 
 impl From<bsec_library_return_t> for BsecError {
     fn from(return_code: bsec_library_return_t) -> Self {
