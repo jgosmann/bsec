@@ -74,86 +74,11 @@
 //! #### BmeSensor
 //!
 //! The [`BmeSensor`] trait allows the BSEC algorithm to communicate with your
-//! BME sensor and obtain measurements. An implementation using the BME680
-//! sensor with the [bme680](https://crates.io/crates/bme680) crate might
-//! look like this:
+//! BME sensor and obtain measurements. You can implement it yourself or use
+//! a ready-made implementation shipped with bsec:
 //!
-//! ```
-//! use bme680::{Bme680, OversamplingSetting, PowerMode, SettingsBuilder};
-//! use bsec::{Input, InputKind};
-//! use bsec::bme::{BmeSensor, BmeSettingsHandle};
-//! use embedded_hal::blocking::{delay::DelayMs, i2c};
-//! use std::fmt::Debug;
-//! use std::time::Duration;
+//! * BME680: Enable the **use-bme680** feature and use [`bme::bme680::Bme680Sensor`].
 //!
-//! pub struct Bme680Sensor<I2C, D>
-//! where
-//!     D: DelayMs<u8>,
-//!     I2C: i2c::Read + i2c::Write
-//! {
-//!     bme680: Bme680<I2C, D>,
-//! }
-//!
-//! impl<I2C, D> BmeSensor for Bme680Sensor<I2C, D>
-//! where
-//!     D: DelayMs<u8>,
-//!     I2C: i2c::Read + i2c::Write,
-//!     <I2C as i2c::Read>::Error: Debug,
-//!     <I2C as i2c::Write>::Error: Debug,
-//! {
-//!     type Error = bme680::Error<<I2C as i2c::Read>::Error, <I2C as i2c::Write>::Error>;
-//!
-//!     fn start_measurement(
-//!         &mut self,
-//!         settings: &BmeSettingsHandle,
-//!     ) -> Result<std::time::Duration, Self::Error> {
-//!         let settings = SettingsBuilder::new()
-//!             .with_humidity_oversampling(OversamplingSetting::from_u8(
-//!                 settings.humidity_oversampling(),
-//!             ))
-//!             .with_temperature_oversampling(OversamplingSetting::from_u8(
-//!                 settings.temperature_oversampling(),
-//!             ))
-//!             .with_pressure_oversampling(OversamplingSetting::from_u8(
-//!                 settings.pressure_oversampling(),
-//!             ))
-//!             .with_run_gas(settings.run_gas())
-//!             .with_gas_measurement(
-//!                 Duration::from_millis(settings.heating_duration().into()),
-//!                 settings.heater_temperature(),
-//!                 20,
-//!             )
-//!             .build();
-//!         self.bme680
-//!             .set_sensor_settings(settings)?;
-//!         let profile_duration = self.bme680.get_profile_dur(&settings.0)?;
-//!         self.bme680.set_sensor_mode(PowerMode::ForcedMode)?;
-//!         Ok(profile_duration)
-//!     }
-//!
-//!     fn get_measurement(&mut self) -> nb::Result<Vec<Input>, Self::Error> {
-//!         let (data, _state) = self.bme680.get_sensor_data()?;
-//!         Ok(vec![
-//!             Input {
-//!                 sensor: InputKind::Temperature,
-//!                 signal: data.temperature_celsius(),
-//!             },
-//!             Input {
-//!                 sensor: InputKind::Pressure,
-//!                 signal: data.pressure_hpa(),
-//!             },
-//!             Input {
-//!                 sensor: InputKind::Humidity,
-//!                 signal: data.humidity_percent(),
-//!             },
-//!             Input {
-//!                 sensor: InputKind::GasResistor,
-//!                 signal: data.gas_resistance_ohm() as f32,
-//!             },
-//!         ])
-//!     }
-//! }
-//! ```
 //!
 //! ### Usage
 //!
