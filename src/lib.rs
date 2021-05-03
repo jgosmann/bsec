@@ -233,6 +233,11 @@
 //! ```
 //!
 //! TODO explain physical and virtual sensor (output)
+//!
+//! ## Features
+//!
+//! * **use-bme680**: Enables the [`bme680`] module providing a [`BmeSensor`]
+//!   implementation for the BME680 sensor to use it with bsec.
 
 use crate::bme::{BmeSensor, BmeSettingsHandle};
 use crate::clock::Clock;

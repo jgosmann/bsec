@@ -7,6 +7,8 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+bme680 = { version = "0.5.1", optional = true }
+embedded-hal = { version = "0.2.5", optional = true }
 libalgobsec-sys = "0.1.0"
 nb = "1.0.0"
 
@@ -16,4 +18,8 @@ embedded-hal = "0.2.5"
 serial_test = "0.5.1"
 
 [features]
+use-bme680 = ["bme680", "embedded-hal"]
 test_support = []
+
+[package.metadata.docs.rs]
+features = ["use-bme680"]

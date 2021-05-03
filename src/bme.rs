@@ -112,3 +112,6 @@ pub mod test_support {
         }
     }
 }
+
+#[cfg(feature = "use-bme680")]
+pub mod bme680;
