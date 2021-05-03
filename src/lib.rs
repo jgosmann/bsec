@@ -138,7 +138,7 @@
 //!     // Start the measurement.
 //!     let wait_duration = block!(bsec.start_next_measurement())?;
 //!     sleep_for(wait_duration);
-//!     # clock.advance_by(wait_duration);  // FIXME hide
+//!     # clock.advance_by(wait_duration);
 //!
 //!     // Process the measurement when ready and print the BSEC outputs.
 //!     let outputs = block!(bsec.process_last_measurement())?;
@@ -312,7 +312,7 @@ impl<S: BmeSensor, C: Clock, B: Borrow<C>> Bsec<S, C, B> {
     /// Returns a vector of virtual sensor outputs calculated by the Bosch BSEC
     /// library.
     pub fn process_last_measurement(&mut self) -> nb::Result<Vec<Output>, Error<S::Error>> {
-        let time_stamp = self.clock.borrow().timestamp_ns(); // FIXME provide timestamp closer to measurement?
+        let time_stamp = self.clock.borrow().timestamp_ns();
         let inputs: Vec<bsec_input_t> = self
             .bme
             .get_measurement()
