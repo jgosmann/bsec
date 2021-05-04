@@ -1,7 +1,16 @@
 //! Error types.
 
-use libalgobsec_sys::*;
+#[cfg(not(feature = "docs-rs"))]
+use libalgobsec_sys::{bsec_library_return_t, bsec_virtual_sensor_t};
 use std::fmt::{self, Debug, Display, Formatter};
+
+#[cfg(feature = "docs-rs")]
+#[allow(non_camel_case_types)]
+struct bsec_virtual_sensor_t {}
+
+#[cfg(feature = "docs-rs")]
+#[allow(non_camel_case_types)]
+struct bsec_library_return_t {}
 
 /// Errors that can occur in the *bsec* crate.
 ///
@@ -143,6 +152,7 @@ impl std::error::Error for BsecError {}
 impl From<bsec_library_return_t> for BsecError {
     fn from(return_code: bsec_library_return_t) -> Self {
         #![allow(non_upper_case_globals)]
+        use libalgobsec_sys::*;
         use BsecError::*;
         match return_code {
             bsec_library_return_t_BSEC_E_DOSTEPS_INVALIDINPUT => DoStepsInvalidInput,

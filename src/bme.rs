@@ -1,9 +1,13 @@
 //! Interface to BME sensors to read physical measurements.
 
 use super::Input;
-#[cfg(not(feature = "docs.rs"))]
+#[cfg(not(feature = "docs-rs"))]
 use libalgobsec_sys::bsec_bme_settings_t;
 use std::{fmt::Debug, time::Duration};
+
+#[cfg(feature = "docs-rs")]
+#[allow(non_camel_case_types)]
+struct bsec_bme_settings_t {}
 
 /// Trait to implement for your specific hardware to obtain measurements from
 /// the BME sensor.

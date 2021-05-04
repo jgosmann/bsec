@@ -168,8 +168,15 @@
 use crate::bme::{BmeSensor, BmeSettingsHandle};
 use crate::clock::Clock;
 use crate::error::{BsecError, ConversionError, Error};
-#[cfg(not(feature = "docs.rs"))]
-use libalgobsec_sys::*;
+#[cfg(not(feature = "docs-rs"))]
+use libalgobsec_sys::{
+    bsec_bme_settings_t, bsec_do_steps, bsec_get_configuration, bsec_get_state, bsec_get_version,
+    bsec_init, bsec_input_t, bsec_library_return_t, bsec_output_t, bsec_physical_sensor_t,
+    bsec_reset_output, bsec_sensor_configuration_t, bsec_sensor_control, bsec_set_configuration,
+    bsec_set_state, bsec_update_subscription, bsec_version_t, bsec_virtual_sensor_t,
+    BSEC_MAX_PHYSICAL_SENSOR, BSEC_MAX_PROPERTY_BLOB_SIZE, BSEC_MAX_STATE_BLOB_SIZE,
+    BSEC_MAX_WORKBUFFER_SIZE,
+};
 use std::borrow::Borrow;
 use std::convert::{From, TryFrom, TryInto};
 use std::fmt::Debug;
@@ -177,6 +184,26 @@ use std::hash::Hash;
 use std::marker::PhantomData;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
+
+#[cfg(feature = "docs-rs")]
+#[allow(non_camel_case_types)]
+struct bsec_library_return_t {}
+
+#[cfg(feature = "docs-rs")]
+#[allow(non_camel_case_types)]
+struct bsec_output_t {}
+
+#[cfg(feature = "docs-rs")]
+#[allow(non_camel_case_types)]
+struct bsec_physical_sensor_t {}
+
+#[cfg(feature = "docs-rs")]
+#[allow(non_camel_case_types)]
+struct bsec_sensor_configuration_t {}
+
+#[cfg(feature = "docs-rs")]
+#[allow(non_camel_case_types)]
+struct bsec_virtual_sensor_t {}
 
 pub mod bme;
 pub mod clock;
@@ -601,6 +628,7 @@ impl From<SampleRate> for f32 {
 
 impl From<SampleRate> for f64 {
     fn from(sample_rate: SampleRate) -> Self {
+        use libalgobsec_sys::*;
         use SampleRate::*;
         match sample_rate {
             Disabled => BSEC_SAMPLE_RATE_DISABLED,
@@ -640,6 +668,7 @@ impl From<u8> for InputKind {
 impl From<u32> for InputKind {
     fn from(physical_sensor: u32) -> Self {
         #![allow(non_upper_case_globals)]
+        use libalgobsec_sys::*;
         use InputKind::*;
         match physical_sensor {
             bsec_physical_sensor_t_BSEC_INPUT_PRESSURE => Pressure,
@@ -655,6 +684,7 @@ impl From<u32> for InputKind {
 
 impl From<InputKind> for bsec_physical_sensor_t {
     fn from(physical_sensor: InputKind) -> Self {
+        use libalgobsec_sys::*;
         use InputKind::*;
         match physical_sensor {
             Pressure => bsec_physical_sensor_t_BSEC_INPUT_PRESSURE,
@@ -697,6 +727,7 @@ pub enum OutputKind {
 
 impl From<OutputKind> for bsec_virtual_sensor_t {
     fn from(virtual_sensor: OutputKind) -> Self {
+        use libalgobsec_sys::*;
         use OutputKind::*;
         match virtual_sensor {
             Iaq => bsec_virtual_sensor_t_BSEC_OUTPUT_IAQ,
@@ -725,6 +756,7 @@ impl TryFrom<bsec_virtual_sensor_t> for OutputKind {
     type Error = ConversionError;
     fn try_from(virtual_sensor: bsec_virtual_sensor_t) -> Result<Self, ConversionError> {
         #![allow(non_upper_case_globals)]
+        use libalgobsec_sys::*;
         use OutputKind::*;
         match virtual_sensor {
             bsec_virtual_sensor_t_BSEC_OUTPUT_IAQ => Ok(Iaq),
@@ -765,7 +797,7 @@ impl IntoResult for bsec_library_return_t {
     fn into_result(self) -> Result<(), BsecError> {
         #![allow(non_upper_case_globals)]
         match self {
-            bsec_library_return_t_BSEC_OK => Ok(()),
+            libalgobsec_sys::bsec_library_return_t_BSEC_OK => Ok(()),
             error_code => Err(BsecError::from(error_code)),
         }
     }
