@@ -1,23 +1,25 @@
-//! Error types
+//! Error types.
 
 use libalgobsec_sys::*;
 use std::fmt::{self, Debug, Display, Formatter};
 
-/// bsec crate errors.
+/// Errors that can occur in the *bsec* crate.
+///
+/// `E` is the error type of the [`crate::bme::BmeSensor`] is use.
 #[derive(Clone, Debug)]
 pub enum Error<E: Debug> {
     /// An variable length vector argument was too long.
     ///
-    /// Bosch BSEC only supports up to 256 elements in many places.
+    /// *Bosch BSEC* only supports up to 256 elements in many places.
     ArgumentListTooLong,
-    /// The instance of the BSEC library has already been acquired.
+    /// A [`crate::Bsec`] has already been acquired.
     ///
-    /// Only a single BSEC instance can be used per application.
+    /// Only a single [`crate::Bsec`] instance can be used at any given time.
     BsecAlreadyInUse,
-    /// An error reported by the Bosch BSEC library.
+    /// An error reported by the *Bosch BSEC* library.
     BsecError(BsecError),
-    /// An error converting data between the bsec crate and the underlying
-    /// Bosch BSEC library.
+    /// An error converting data between from the *Bosch BSEC* library to the
+    /// *bsec* crate.
     ConversionError(ConversionError),
     /// An error caused by the BME sensor.
     BmeSensorError(E),
@@ -55,21 +57,23 @@ impl<E: Debug> From<ConversionError> for Error<E> {
     }
 }
 
-/// An error converting data between the bsec crate and the underlying Bosch
-/// BSEC library.
+/// An error converting data from the *Bosch BSEC* library to the *bsec* crate.
 #[derive(Clone, Debug)]
 pub enum ConversionError {
     /// The sample rate was invalid.
     ///
-    /// The Bosch BSEC library only supports specific sample rate values.
-    /// See the Bosch BSEC documentation.
+    /// The *Bosch BSEC* library returned a sample rate not listed in
+    /// [`crate::SampleRate`].
     InvalidSampleRate(f64),
     /// The virtual sensor ID was invalid.
+    ///
+    /// The *Bosch BSEC* library returned a virtual sensor ID not correspending
+    /// to any [`crate::OutputKind`].
     InvalidVirtualSensorId(bsec_virtual_sensor_t),
     /// The accuracy value was invalid.
     ///
-    /// The Bosch BSEC library should on report specific accuracy values.
-    /// See the Bosch BSEC documentation.
+    /// The *Bosch BSEC* library returned an accuracy value not listed in
+    /// [`crate::Accuracy`].
     InvalidAccuracy(u8),
 }
 

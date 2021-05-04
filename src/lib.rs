@@ -7,10 +7,13 @@
 //!
 //! ## Important license information
 //!
-//! The Bosch BSEC library is proprietary. Thus, it cannot be included in this
-//! crate and needs to be obtained separately. There will be also some
-//! documentation missing in the bsec crate where you will have to refer to the
-//! documentation provided with your copy of the Bosch BSEC library.
+//! The *Bosch BSEC* library is proprietary. Thus, the *Bosch BSEC* library and
+//! its documentation cannot be included in the *bsec* Rust crate and need to be
+//! obtained separately.
+//!
+//! While the *bsec* documentation covers the Rust crate itself, you will likely
+//! have to refer to the *Bosch BSEC* documentation at some points to get a full
+//! understanding.
 //!
 //! You are responsible for adhering to the Bosch BSEC lincese terms in your
 //! products, despite the Rust API in this crate being published under a
@@ -24,10 +27,10 @@
 //!
 //! ### Setup paths to the Bosch BSEC library
 //!
-//! To be able to use this crate it needs to know where to find the Bosch BSEC
-//! header files and library on your system. These paths are provided as the
-//! configuration options `besc_include_path` and `bsec_library_path` to the
-//! Rust compiler.
+//! To be able to use this crate, it needs to know where to find the
+//! *Bosch BSEC* header files and library on your system. These paths are
+//! provided as the configuration options `besc_include_path` and
+//! `bsec_library_path` to the Rust compiler.
 //!
 //! You can do this by creating a `.cargo/config` file in your crate with the
 //! following content (adjust the paths accordingly):
@@ -40,62 +43,61 @@
 //! ]
 //! ```
 //!
-//! (You might want to compare with the instructions for
+//! (You might want to also have a look at the instructions for
 //! [libalgobsec-sys](https://crates.io/crates/libalgobsec-sys) providing the
 //! actual low-level bindings.)
 //!
 //! ### Implement necessary traits
 //!
-//! To be able to use the bsec crate, you have to implement the [`Clock`] and
-//! [`BmeSensor`] traits
+//! To be able to use the *bsec* crate, you need implementations of the
+//! [`Clock`] and [`BmeSensor`] traits
 //!
 //! #### Clock
 //!
 //! The [`Clock`] traits allows the BSEC algorithm to obtain timestamps to
 //! schedule sensor measurements accordingly. Your implementation might depend
-//! on your hardware platform. A possible implementation based on [`std::time`]
-//! could look like this:
-//!
-//! ```
-//! use bsec::clock::Clock;
-//! use std::time::{Duration, Instant};
-//!
-//! pub struct TimePassed {
-//!     start: Instant,
-//! }
-//!
-//! impl Clock for TimePassed {
-//!     fn timestamp_ns(&self) -> i64 {
-//!         Instant::now().duration_since(self.start).as_nanos() as i64
-//!     }
-//! }
-//! ```
+//! on your hardware platform or you can use the generic implementation
+//! [`clock::TimePassed`].
 //!
 //! #### BmeSensor
 //!
 //! The [`BmeSensor`] trait allows the BSEC algorithm to communicate with your
 //! BME sensor and obtain measurements. You can implement it yourself or use
-//! a ready-made implementation shipped with bsec:
+//! a ready-made implementation shipped with *bsec*:
 //!
-//! * BME680: Enable the **use-bme680** feature and use [`bme::bme680::Bme680Sensor`].
+//! * **BME680** implementation is provided as [`bme::bme680::Bme680Sensor`];
+//!   requires the **use-bme680** feature.
 //!
 //!
 //! ### Usage
+//!
+//! The following example demonstrates the basic *bsec* usage. Essentially, you
+//! need to
+//!
+//! * acquire an instance of the library (only one can be in use at any given
+//!   time),
+//! * subscribe to the desired outputs,
+//! * and perform measurements in accordance with the sampling rate.
+//!
+//! The outputs of the BSEC algorithm are also considered virtual sensors.
+//! The inputs to the BSEC algorithm are the sensor measurements and are
+//! considered physical sensors (though there are some special input that do
+//! not actually correspond to any physical sensor).
 //!
 //! ```
 //! use bsec::{Bsec, Input, InputKind, OutputKind, clock::Clock, SampleRate, SubscriptionRequest};
 //! use nb::block;
 //! use std::time::Duration;
 //! #
-//! # #[cfg(not(feature = "test_support"))]
-//! # fn main() { panic!("doctests must be run with `test_support` feature.") }
+//! # #[cfg(not(feature = "test-support"))]
+//! # fn main() { panic!("doctests must be run with `test-support` feature.") }
 //! #
-//! # #[cfg(feature = "test_support")]
+//! # #[cfg(feature = "test-support")]
 //! # type TimePassed = bsec::clock::test_support::FakeClock;
 //! #
 //! # fn sleep_for(duration: Duration) -> () {}
 //! #
-//! # #[cfg(feature = "test_support")]
+//! # #[cfg(feature = "test-support")]
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! #
 //! # let clock = TimePassed::default();
@@ -157,12 +159,11 @@
 //! # }
 //! ```
 //!
-//! TODO explain physical and virtual sensor (output)
-//!
 //! ## Features
 //!
 //! * **use-bme680**: Enables the [`bme680`] module providing a [`BmeSensor`]
-//!   implementation for the BME680 sensor to use it with bsec.
+//!   implementation for the BME680 sensor to use it with *bsec*.
+//! * **test-support**: Provides additional classes for unit testing.
 
 use crate::bme::{BmeSensor, BmeSettingsHandle};
 use crate::clock::Clock;
@@ -182,7 +183,7 @@ pub mod error;
 
 static BSEC_IN_USE: AtomicBool = AtomicBool::new(false);
 
-/// Handle to encapsulates the Bosch BSEC and related state.
+/// Handle to encapsulates the *Bosch BSEC* library and related state.
 pub struct Bsec<S: BmeSensor, C: Clock, B: Borrow<C>> {
     bme: S,
     subscribed: u32,
@@ -193,10 +194,10 @@ pub struct Bsec<S: BmeSensor, C: Clock, B: Borrow<C>> {
 }
 
 impl<S: BmeSensor, C: Clock, B: Borrow<C>> Bsec<S, C, B> {
-    /// Initialize the Bosch BSEC library and return a handle to interact with
+    /// Initialize the *Bosch BSEC* library and return a handle to interact with
     /// it.
     ///
-    /// * `bme`: [`BmeSensor`] implementation to interact with the BME sensor.
+    /// * `bme`: [`BmeSensor`] implementation to communicate with the BME sensor.
     /// * `clock`: [`Clock`] implementation to obtain timestamps.
     pub fn init(bme: S, clock: B) -> Result<Self, Error<S::Error>> {
         if let Ok(_) =
@@ -220,11 +221,11 @@ impl<S: BmeSensor, C: Clock, B: Borrow<C>> Bsec<S, C, B> {
 
     /// Change subscription to virtual sensor outputs.
     ///
-    /// * `requested_outputs`: Configuration of virtual sensors and their sample
+    /// * `requests`: Configuration of virtual sensors and their sample
     ///   rates to subscribe to.
     ///
-    /// Returns a vector of physical sensors that need to be sampled with the
-    /// respective sample rates.
+    /// Returns a vector describing physical sensor and sampling rates required
+    /// as input to the BSEC algorithm.
     pub fn update_subscription(
         &mut self,
         requests: &[SubscriptionRequest],
@@ -310,8 +311,8 @@ impl<S: BmeSensor, C: Clock, B: Borrow<C>> Bsec<S, C, B> {
     /// Call this method after the duration returned from a call to
     /// [`Self::start_next_measurement`] has passed.
     ///
-    /// Returns a vector of virtual sensor outputs calculated by the Bosch BSEC
-    /// library.
+    /// Returns a vector of virtual sensor outputs calculated by the
+    /// *Bosch BSEC* library.
     pub fn process_last_measurement(&mut self) -> nb::Result<Vec<Output>, Error<S::Error>> {
         let time_stamp = self.clock.borrow().timestamp_ns();
         let inputs: Vec<bsec_input_t> = self
@@ -363,7 +364,8 @@ impl<S: BmeSensor, C: Clock, B: Borrow<C>> Bsec<S, C, B> {
         Ok(signals?)
     }
 
-    /// Get the current raw Bosch BSEC state, e.g. to persist it before shutdown.
+    /// Get the current raw *Bosch BSEC* state, e.g. to persist it before
+    /// shutdown.
     pub fn get_state(&self) -> Result<Vec<u8>, Error<S::Error>> {
         let mut state = [0u8; BSEC_MAX_STATE_BLOB_SIZE as usize];
         let mut work_buffer = [0u8; BSEC_MAX_WORKBUFFER_SIZE as usize];
@@ -382,7 +384,8 @@ impl<S: BmeSensor, C: Clock, B: Borrow<C>> Bsec<S, C, B> {
         Ok(state[..state_length as usize].into())
     }
 
-    /// Set the raw Bosch BSEC state, e.g. to restore persisted state after shutdown.
+    /// Set the raw *Bosch BSEC* state, e.g. to restore persisted state after
+    /// shutdown.
     pub fn set_state(&mut self, state: &[u8]) -> Result<(), Error<S::Error>> {
         let mut work_buffer = [0u8; BSEC_MAX_WORKBUFFER_SIZE as usize];
         unsafe {
@@ -397,7 +400,7 @@ impl<S: BmeSensor, C: Clock, B: Borrow<C>> Bsec<S, C, B> {
         Ok(())
     }
 
-    /// Get the current (raw) Bosch BSEC configuration.
+    /// Get the current (raw) *Bosch BSEC* configuration.
     pub fn get_configuration(&self) -> Result<Vec<u8>, Error<S::Error>> {
         let mut serialized_settings = [0u8; BSEC_MAX_PROPERTY_BLOB_SIZE as usize];
         let mut serialized_settings_length = 0u32;
@@ -416,10 +419,11 @@ impl<S: BmeSensor, C: Clock, B: Borrow<C>> Bsec<S, C, B> {
         Ok(serialized_settings[..serialized_settings_length as usize].into())
     }
 
-    /// Set the (raw) Bosch BSEC configuration.
+    /// Set the (raw) *Bosch BSEC* configuration.
     ///
-    /// Your copy of the Bosch BSEC library should contain several different
-    /// configuration files. See the Bosch BSEC documentation for more information.
+    /// Your copy of the *Bosch BSEC* library should contain several different
+    /// configuration files. See the Bosch BSEC documentation for more
+    /// information.
     pub fn set_configuration(&mut self, serialized_settings: &[u8]) -> Result<(), Error<S::Error>> {
         let mut work_buffer = [0u8; BSEC_MAX_WORKBUFFER_SIZE as usize];
         unsafe {
@@ -434,7 +438,8 @@ impl<S: BmeSensor, C: Clock, B: Borrow<C>> Bsec<S, C, B> {
         Ok(())
     }
 
-    /// See documentation of `bsec_reset_output` in the Bosch BSEC documentation.
+    /// See documentation of `bsec_reset_output` in the *Bosch BSEC*
+    /// documentation.
     pub fn reset_output(&mut self, sensor: OutputKind) -> Result<(), Error<S::Error>> {
         unsafe {
             bsec_reset_output(bsec_virtual_sensor_t::from(sensor) as u8).into_result()?;
@@ -449,7 +454,7 @@ impl<S: BmeSensor, C: Clock, B: Borrow<C>> Drop for Bsec<S, C, B> {
     }
 }
 
-/// Return the Bosch BSEC version.
+/// Return the *Bosch BSEC* version.
 ///
 /// The returned tuple consists of *major*, *minor*, *major bugfix*, and
 /// *minor bugfix* version.
@@ -511,7 +516,7 @@ impl TryFrom<&bsec_output_t> for Output {
     }
 }
 
-/// Sensor accuracy level
+/// Sensor accuracy level.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum Accuracy {
     Unreliable = 0,
@@ -534,7 +539,7 @@ impl TryFrom<u8> for Accuracy {
     }
 }
 
-/// Describes a virtual sensor output to request from the Bosch BSEC library.
+/// Describes a virtual sensor output to request from the *Bosch BSEC* library.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct SubscriptionRequest {
     /// Desired sample rate of the virtual sensor output.
@@ -570,20 +575,20 @@ impl From<&bsec_sensor_configuration_t> for RequiredInput {
     }
 }
 
-/// Valid BSEC sample rates.
+/// Valid sampling rates for the BSEC algorithm.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum SampleRate {
     /// Disabled, not being sampled.
     Disabled,
-    /// Ultra-low power, see Bosch BSEC documentation.
+    /// Ultra-low power, see *Bosch BSEC* documentation.
     Ulp,
-    /// Continuous mode for testing, see Bosch BSEC documentation.
+    /// Continuous mode for testing, see *Bosch BSEC* documentation.
     Continuous,
-    /// Low power, see Bosch BSEC documentation.
+    /// Low power, see *Bosch BSEC* documentation.
     Lp,
     /// Perform a single measurement on demand between sampling intervals.
     ///
-    /// See Bosch BSEC documentation.
+    /// See *Bosch BSEC* documentation.
     UlpMeasurementOnDemand,
 }
 
@@ -668,9 +673,9 @@ impl From<InputKind> for u8 {
     }
 }
 
-/// Bosch BSEC virtual sensor output.
+/// *Bosch BSEC* virtual sensor output.
 ///
-/// See Bosch BSEC documentation.
+/// See *Bosch BSEC* documentation.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum OutputKind {
     Iaq = 0x0001,

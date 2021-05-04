@@ -19,7 +19,7 @@ serial_test = "0.5.1"
 
 [features]
 use-bme680 = ["bme680", "embedded-hal"]
-test_support = []
+test-support = []
 
 [package.metadata.docs.rs]
 features = ["use-bme680"]

@@ -15,8 +15,20 @@ use embedded_hal::blocking::{delay::DelayMs, i2c};
 
 /// Implementation of the [`BmeSensor`] trait for the BME680 sensor.
 ///
-/// For the gas resistance measurement the last reading of the temperature
+/// For the gas resistance measurement, the last reading of the temperature
 /// sensor will be used as ambient temperature.
+///
+/// # Example
+///
+/// ```ignore
+/// use bme680::{Bme680, I2CAddress};
+/// use bsec::bme::bme680::Bme680Sensor;
+/// use linux_embedded_hal::{Delay, I2cdev};
+///
+/// let i2c = I2cdev::new("/dev/i2c")?;
+/// let bme680 = Bme680::init(i2c, Delay {}, I2CAddress::Primary)?;
+/// let sensor = Bme680Sensor::new(bme680, 20.);
+/// ```
 pub struct Bme680Sensor<I2C, D>
 where
     I2C: i2c::Read + i2c::Write,
@@ -32,9 +44,9 @@ where
     I2C: i2c::Read + i2c::Write,
     D: DelayMs<u8>,
 {
-    /// Create a new instance using *bme680*.
+    /// Create a new instance reading measurement from `bme680`.
     ///
-    /// *initial_ambient_temperature_celsius* sets the ambient temperature for
+    /// `initial_ambient_temperature_celsius` sets the ambient temperature for
     /// the first gas resistance reading. All subsequent readings use the
     /// respective last temperature reading.
     pub fn new(bme680: Bme680<I2C, D>, initial_ambient_temperature_celsius: f32) -> Self {
