@@ -262,11 +262,10 @@ impl<S: BmeSensor, C: Clock, B: Borrow<C>> Bsec<S, C, B> {
                 }
             }
         }
-        // FIXME why are we getting invalid sensor ids?
         Ok(required_sensor_settings
             .iter()
             .take(n_required_sensor_settings as usize)
-            .filter_map(|x| RequiredInput::try_from(x).ok())
+            .map(RequiredInput::from)
             .collect())
     }
 
@@ -562,15 +561,12 @@ pub struct RequiredInput {
     pub sensor: InputKind,
 }
 
-impl TryFrom<&bsec_sensor_configuration_t> for RequiredInput {
-    type Error = ConversionError;
-    fn try_from(
-        sensor_configuration: &bsec_sensor_configuration_t,
-    ) -> Result<Self, ConversionError> {
-        Ok(Self {
+impl From<&bsec_sensor_configuration_t> for RequiredInput {
+    fn from(sensor_configuration: &bsec_sensor_configuration_t) -> Self {
+        Self {
             sample_rate: sensor_configuration.sample_rate,
-            sensor: InputKind::try_from(sensor_configuration.sensor_id)?,
-        })
+            sensor: InputKind::from(sensor_configuration.sensor_id),
+        }
     }
 }
 
@@ -625,30 +621,28 @@ pub enum InputKind {
     HeatSource,
     /// Pseudo-sensor to disable the baseline tracker.
     DisableBaselineTracker,
+    /// Other sensor only known by magic number.
+    Other(u32),
 }
 
-impl TryFrom<u8> for InputKind {
-    type Error = ConversionError;
-    fn try_from(physical_sensor: u8) -> Result<Self, ConversionError> {
-        Self::try_from(physical_sensor as u32)
+impl From<u8> for InputKind {
+    fn from(physical_sensor: u8) -> Self {
+        Self::from(physical_sensor as u32)
     }
 }
 
-impl TryFrom<u32> for InputKind {
-    type Error = ConversionError;
-    fn try_from(physical_sensor: u32) -> Result<Self, ConversionError> {
+impl From<u32> for InputKind {
+    fn from(physical_sensor: u32) -> Self {
         #![allow(non_upper_case_globals)]
         use InputKind::*;
         match physical_sensor {
-            bsec_physical_sensor_t_BSEC_INPUT_PRESSURE => Ok(Pressure),
-            bsec_physical_sensor_t_BSEC_INPUT_HUMIDITY => Ok(Humidity),
-            bsec_physical_sensor_t_BSEC_INPUT_TEMPERATURE => Ok(Temperature),
-            bsec_physical_sensor_t_BSEC_INPUT_GASRESISTOR => Ok(GasResistor),
-            bsec_physical_sensor_t_BSEC_INPUT_HEATSOURCE => Ok(HeatSource),
-            bsec_physical_sensor_t_BSEC_INPUT_DISABLE_BASELINE_TRACKER => {
-                Ok(DisableBaselineTracker)
-            }
-            physical_sensor => Err(ConversionError::InvalidPhysicalSensorId(physical_sensor)),
+            bsec_physical_sensor_t_BSEC_INPUT_PRESSURE => Pressure,
+            bsec_physical_sensor_t_BSEC_INPUT_HUMIDITY => Humidity,
+            bsec_physical_sensor_t_BSEC_INPUT_TEMPERATURE => Temperature,
+            bsec_physical_sensor_t_BSEC_INPUT_GASRESISTOR => GasResistor,
+            bsec_physical_sensor_t_BSEC_INPUT_HEATSOURCE => HeatSource,
+            bsec_physical_sensor_t_BSEC_INPUT_DISABLE_BASELINE_TRACKER => DisableBaselineTracker,
+            physical_sensor => Other(physical_sensor),
         }
     }
 }
@@ -663,6 +657,7 @@ impl From<InputKind> for bsec_physical_sensor_t {
             GasResistor => bsec_physical_sensor_t_BSEC_INPUT_GASRESISTOR,
             HeatSource => bsec_physical_sensor_t_BSEC_INPUT_HEATSOURCE,
             DisableBaselineTracker => bsec_physical_sensor_t_BSEC_INPUT_DISABLE_BASELINE_TRACKER,
+            Other(sensor) => sensor,
         }
     }
 }

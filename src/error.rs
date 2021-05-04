@@ -64,8 +64,6 @@ pub enum ConversionError {
     /// The Bosch BSEC library only supports specific sample rate values.
     /// See the Bosch BSEC documentation.
     InvalidSampleRate(f64),
-    /// The physical sensor ID was invalid.
-    InvalidPhysicalSensorId(bsec_physical_sensor_t),
     /// The virtual sensor ID was invalid.
     InvalidVirtualSensorId(bsec_virtual_sensor_t),
     /// The accuracy value was invalid.
@@ -80,9 +78,6 @@ impl Display for ConversionError {
         use ConversionError::*;
         match self {
             InvalidSampleRate(x) => f.write_fmt(format_args!("invalid sample rate: {}", x)),
-            InvalidPhysicalSensorId(x) => {
-                f.write_fmt(format_args!("invalid physical sensor ID: {}", x))
-            }
             InvalidVirtualSensorId(x) => {
                 f.write_fmt(format_args!("invalid virtual sensor ID: {}", x))
             }
