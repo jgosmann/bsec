@@ -1,6 +1,6 @@
 [package]
 name = "bsec"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Jan Gosmann <jan@hyper-world.de>"]
 edition = "2018"
 license = "MIT OR Apache-2.0"
@@ -24,8 +24,9 @@ embedded-hal = "0.2.5"
 serial_test = "0.5.1"
 
 [features]
-use-bme680 = ["bme680", "embedded-hal"]
+docs-rs = []
 test-support = []
+use-bme680 = ["bme680", "embedded-hal"]
 
 [package.metadata.docs.rs]
-features = ["use-bme680"]
+features = ["docs-rs", "test-support", "use-bme680"]

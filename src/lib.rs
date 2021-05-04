@@ -168,6 +168,7 @@
 use crate::bme::{BmeSensor, BmeSettingsHandle};
 use crate::clock::Clock;
 use crate::error::{BsecError, ConversionError, Error};
+#[cfg(not(feature = "docs.rs"))]
 use libalgobsec_sys::*;
 use std::borrow::Borrow;
 use std::convert::{From, TryFrom, TryInto};
