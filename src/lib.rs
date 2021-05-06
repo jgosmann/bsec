@@ -228,8 +228,9 @@ impl<S: BmeSensor, C: Clock, B: Borrow<C>> Bsec<S, C, B> {
     /// * `bme`: [`BmeSensor`] implementation to communicate with the BME sensor.
     /// * `clock`: [`Clock`] implementation to obtain timestamps.
     pub fn init(bme: S, clock: B) -> Result<Self, Error<S::Error>> {
-        if let Ok(_) =
-            BSEC_IN_USE.compare_exchange(false, true, Ordering::AcqRel, Ordering::Relaxed)
+        if BSEC_IN_USE
+            .compare_exchange(false, true, Ordering::AcqRel, Ordering::Relaxed)
+            .is_ok()
         {
             unsafe {
                 bsec_init().into_result()?;
