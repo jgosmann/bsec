@@ -80,7 +80,7 @@ pub mod tests {
 /// This module is only available if the **test-support** feature is enabled.
 #[cfg(any(test, feature = "test-support"))]
 pub mod test_support {
-    use std::{cell::RefCell, time::Duration};
+    use std::{sync::atomic::{AtomicI64, Ordering}, time::Duration};
 
     use super::*;
 
@@ -93,15 +93,15 @@ pub mod test_support {
     /// ```
     /// # use bsec::clock::{Clock, test_support::FakeClock};
     /// let clock = FakeClock::new();
+    /// assert_eq!(clock.timestamp_ns(), 0);
     /// assert_eq!(clock.timestamp_ns(), 1);
     /// assert_eq!(clock.timestamp_ns(), 2);
-    /// assert_eq!(clock.timestamp_ns(), 3);
     /// clock.advance_by(std::time::Duration::from_nanos(5));
-    /// assert_eq!(clock.timestamp_ns(), 9);
+    /// assert_eq!(clock.timestamp_ns(), 8);
     /// ```
     #[derive(Default)]
     pub struct FakeClock {
-        timestamp_ns: RefCell<i64>,
+        timestamp_ns: AtomicI64,
     }
 
     impl FakeClock {
@@ -114,15 +114,14 @@ pub mod test_support {
     impl Clock for FakeClock {
         /// Returns the current timestamp and advances it by one.
         fn timestamp_ns(&self) -> i64 {
-            *self.timestamp_ns.borrow_mut() += 1;
-            *self.timestamp_ns.borrow()
+            self.timestamp_ns.fetch_add(1, Ordering::AcqRel)
         }
     }
 
     impl FakeClock {
         /// Advance the clock's internal time by `duration`.
         pub fn advance_by(&self, duration: Duration) {
-            *self.timestamp_ns.borrow_mut() += duration.as_nanos() as i64;
+            self.timestamp_ns.fetch_add(duration.as_nanos() as i64, Ordering::AcqRel);
         }
     }
 }
