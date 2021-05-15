@@ -569,7 +569,7 @@ impl TryFrom<u8> for Accuracy {
 }
 
 /// Describes a virtual sensor output to request from the *Bosch BSEC* library.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct SubscriptionRequest {
     /// Desired sample rate of the virtual sensor output.
     pub sample_rate: SampleRate,

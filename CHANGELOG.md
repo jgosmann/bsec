@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Support for the `HeatSource` and `DisableBaselineTracker` *Bosch BSEC* inputs
   in the `Bme680Sensor`.
+* `SubscriptionRequest` is now hashable.
 
 ### Changed
 
