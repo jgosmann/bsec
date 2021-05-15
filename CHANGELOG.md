@@ -6,6 +6,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+* Support for the `HeatSource` and `DisableBaselineTracker` *Bosch BSEC* inputs
+  in the `Bme680Sensor`.
+
+### Changed
+
+* The `Bme680Sensor` cannot be instantiated directly anymore, but is created
+  with the `Bme680SensorBuilder`.
+
+
 ## [0.2.0] - 2021-05-10
 
 ### Changed
