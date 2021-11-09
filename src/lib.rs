@@ -229,7 +229,7 @@ impl<S: BmeSensor, C: Clock, B: Borrow<C>> Bsec<S, C, B> {
     /// * `clock`: [`Clock`] implementation to obtain timestamps.
     pub fn init(bme: S, clock: B) -> Result<Self, Error<S::Error>> {
         if BSEC_IN_USE
-            .compare_exchange(false, true, Ordering::AcqRel, Ordering::Relaxed)
+            .compare_exchange(false, true, Ordering::Acquire, Ordering::Relaxed)
             .is_ok()
         {
             unsafe {
@@ -479,7 +479,7 @@ impl<S: BmeSensor, C: Clock, B: Borrow<C>> Bsec<S, C, B> {
 
 impl<S: BmeSensor, C: Clock, B: Borrow<C>> Drop for Bsec<S, C, B> {
     fn drop(&mut self) {
-        BSEC_IN_USE.store(false, Ordering::SeqCst);
+        BSEC_IN_USE.store(false, Ordering::Release);
     }
 }
 

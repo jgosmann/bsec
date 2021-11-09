@@ -80,7 +80,10 @@ pub mod tests {
 /// This module is only available if the **test-support** feature is enabled.
 #[cfg(any(test, feature = "test-support"))]
 pub mod test_support {
-    use std::{sync::atomic::{AtomicI64, Ordering}, time::Duration};
+    use std::{
+        sync::atomic::{AtomicI64, Ordering},
+        time::Duration,
+    };
 
     use super::*;
 
@@ -114,14 +117,15 @@ pub mod test_support {
     impl Clock for FakeClock {
         /// Returns the current timestamp and advances it by one.
         fn timestamp_ns(&self) -> i64 {
-            self.timestamp_ns.fetch_add(1, Ordering::AcqRel)
+            self.timestamp_ns.fetch_add(1, Ordering::Relaxed)
         }
     }
 
     impl FakeClock {
         /// Advance the clock's internal time by `duration`.
         pub fn advance_by(&self, duration: Duration) {
-            self.timestamp_ns.fetch_add(duration.as_nanos() as i64, Ordering::AcqRel);
+            self.timestamp_ns
+                .fetch_add(duration.as_nanos() as i64, Ordering::Relaxed);
         }
     }
 }
