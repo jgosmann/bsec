@@ -35,6 +35,7 @@ where
     D: DelayMs<u8>,
 {
     bme680: Bme680<I2C, D>,
+    delay: D,
     initial_ambient_temp_celsius: f32,
     temp_offset_celsius: f32,
     disable_baseline_tracker: Option<f32>,
@@ -52,9 +53,10 @@ where
     /// * `initial_ambient_temp_celsius = 20.0`
     /// * `temp_offset_celsius = 0.0`
     /// * `disable_baseline_tracker = false`
-    pub fn new(bme680: Bme680<I2C, D>) -> Self {
+    pub fn new(bme680: Bme680<I2C, D>, delay: D) -> Self {
         Self {
             bme680,
+            delay,
             initial_ambient_temp_celsius: 20.,
             temp_offset_celsius: 0.,
             disable_baseline_tracker: None,
@@ -83,6 +85,7 @@ where
     pub fn build(self) -> Bme680Sensor<I2C, D> {
         Bme680Sensor::new(
             self.bme680,
+            self.delay,
             self.initial_ambient_temp_celsius,
             self.temp_offset_celsius,
             self.disable_baseline_tracker,
@@ -102,6 +105,7 @@ where
     D: DelayMs<u8>,
 {
     bme680: Bme680<I2C, D>,
+    delay: D,
     measurement_available_after: Option<Instant>,
     last_measured_temp_celsius: f32,
     temp_offset_celsius: f32,
@@ -127,12 +131,14 @@ where
     ///   documentation for details.
     fn new(
         bme680: Bme680<I2C, D>,
+        delay: D,
         initial_ambient_temp_celsius: f32,
         temp_offset_celsius: f32,
         disable_baseline_tracker: Option<f32>,
     ) -> Self {
         Bme680Sensor {
             bme680,
+            delay,
             measurement_available_after: None,
             last_measured_temp_celsius: initial_ambient_temp_celsius,
             temp_offset_celsius,
@@ -169,9 +175,10 @@ where
             )
             .build();
 
-        self.bme680.set_sensor_settings(settings)?;
+        self.bme680.set_sensor_settings(&mut self.delay, settings)?;
         let profile_duration = self.bme680.get_profile_dur(&settings.0)?;
-        self.bme680.set_sensor_mode(PowerMode::ForcedMode)?;
+        self.bme680
+            .set_sensor_mode(&mut self.delay, PowerMode::ForcedMode)?;
         self.measurement_available_after = Some(Instant::now() + profile_duration);
         Ok(profile_duration)
     }
@@ -181,7 +188,7 @@ where
             None => panic!("must call start_measurement before get_measurement"),
             Some(instant) if instant > Instant::now() => Err(nb::Error::WouldBlock),
             _ => {
-                let (data, _state) = self.bme680.get_sensor_data()?;
+                let (data, _state) = self.bme680.get_sensor_data(&mut self.delay)?;
                 self.last_measured_temp_celsius = data.temperature_celsius();
                 let mut bsec_inputs = Vec::with_capacity(6);
                 bsec_inputs.extend(&[
