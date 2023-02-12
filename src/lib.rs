@@ -151,7 +151,7 @@
 //! #   let signals: std::collections::HashMap<bsec::OutputKind, &bsec::Output> =
 //! #       outputs.iter().map(|s| (s.sensor, s)).collect();
 //! #   assert!(
-//! #       (signals.get(&bsec::OutputKind::Iaq).unwrap().signal - 25.).abs()
+//! #       (signals.get(&bsec::OutputKind::Iaq).unwrap().signal - 50.).abs()
 //! #           < f64::EPSILON
 //! #   );
 //! #   return Ok(())
@@ -634,7 +634,7 @@ impl From<SampleRate> for f64 {
         match sample_rate {
             Disabled => BSEC_SAMPLE_RATE_DISABLED,
             Ulp => BSEC_SAMPLE_RATE_ULP,
-            Continuous => BSEC_SAMPLE_RATE_CONTINUOUS,
+            Continuous => BSEC_SAMPLE_RATE_CONT,
             Lp => BSEC_SAMPLE_RATE_LP,
             UlpMeasurementOnDemand => BSEC_SAMPLE_RATE_ULP_MEASUREMENT_ON_DEMAND,
         }
@@ -722,7 +722,6 @@ pub enum OutputKind {
     RunInStatus = 0x0200,
     SensorHeatCompensatedTemperature = 0x0400,
     SensorHeatCompensatedHumidity = 0x0800,
-    DebugCompensatedGas = 0x1000,
     GasPercentage = 0x2000,
 }
 
@@ -747,7 +746,6 @@ impl From<OutputKind> for bsec_virtual_sensor_t {
             SensorHeatCompensatedHumidity => {
                 bsec_virtual_sensor_t_BSEC_OUTPUT_SENSOR_HEAT_COMPENSATED_HUMIDITY
             }
-            DebugCompensatedGas => bsec_virtual_sensor_t_BSEC_OUTPUT_COMPENSATED_GAS,
             GasPercentage => bsec_virtual_sensor_t_BSEC_OUTPUT_GAS_PERCENTAGE,
         }
     }
@@ -776,7 +774,6 @@ impl TryFrom<bsec_virtual_sensor_t> for OutputKind {
             bsec_virtual_sensor_t_BSEC_OUTPUT_SENSOR_HEAT_COMPENSATED_HUMIDITY => {
                 Ok(SensorHeatCompensatedHumidity)
             }
-            bsec_virtual_sensor_t_BSEC_OUTPUT_COMPENSATED_GAS => Ok(DebugCompensatedGas),
             bsec_virtual_sensor_t_BSEC_OUTPUT_GAS_PERCENTAGE => Ok(GasPercentage),
             _ => Err(ConversionError::InvalidVirtualSensorId(virtual_sensor)),
         }
