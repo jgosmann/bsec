@@ -31,6 +31,7 @@ struct bsec_bme_settings_t {}
 ///     I2C: i2c::Read + i2c::Write
 /// {
 ///     bme680: Bme680<I2C, D>,
+///     delay: D,
 /// }
 ///
 /// impl<I2C, D> BmeSensor for Bme680Sensor<I2C, D>
@@ -41,7 +42,7 @@ struct bsec_bme_settings_t {}
 ///     <I2C as i2c::Write>::Error: Debug,
 /// {
 ///     type Error = bme680::Error<<I2C as i2c::Read>::Error, <I2C as i2c::Write>::Error>;
-///
+///     
 ///     fn start_measurement(
 ///         &mut self,
 ///         settings: &BmeSettingsHandle,
@@ -64,14 +65,14 @@ struct bsec_bme_settings_t {}
 ///             )
 ///             .build();
 ///         self.bme680
-///             .set_sensor_settings(settings)?;
+///             .set_sensor_settings(&mut self.delay, settings)?;
 ///         let profile_duration = self.bme680.get_profile_dur(&settings.0)?;
-///         self.bme680.set_sensor_mode(PowerMode::ForcedMode)?;
+///         self.bme680.set_sensor_mode(&mut self.delay, PowerMode::ForcedMode)?;
 ///         Ok(profile_duration)
 ///     }
 ///
 ///     fn get_measurement(&mut self) -> nb::Result<Vec<Input>, Self::Error> {
-///         let (data, _state) = self.bme680.get_sensor_data()?;
+///         let (data, _state) = self.bme680.get_sensor_data(&mut self.delay)?;
 ///         Ok(vec![
 ///             Input {
 ///                 sensor: InputKind::Temperature,
