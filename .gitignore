@@ -1,3 +1,4 @@
 .cargo/config
+.cargo/config.toml
 /target
 Cargo.lock
