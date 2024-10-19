@@ -26,13 +26,13 @@ use std::time::{Duration, Instant};
 use crate::bme::{BmeSensor, BmeSettingsHandle};
 use crate::{Input, InputKind};
 use bme680::{Bme680, OversamplingSetting, PowerMode, SettingsBuilder};
-use embedded_hal::blocking::{delay::DelayMs, i2c};
+use embedded_hal::{delay::DelayNs, i2c};
 
 /// Builder for [`Bme680Sensor`] instances.
 pub struct Bme680SensorBuilder<I2C, D>
 where
-    I2C: i2c::Read + i2c::Write,
-    D: DelayMs<u8>,
+    I2C: i2c::I2c,
+    D: DelayNs,
 {
     bme680: Bme680<I2C, D>,
     delay: D,
@@ -43,8 +43,8 @@ where
 
 impl<I2C, D> Bme680SensorBuilder<I2C, D>
 where
-    I2C: i2c::Read + i2c::Write,
-    D: DelayMs<u8>,
+    I2C: i2c::I2c,
+    D: DelayNs,
 {
     /// Create a new builder instance with `bme680`.
     ///
@@ -101,8 +101,8 @@ where
 /// Use [`Bme680SensorBuilder`] to create instances of this struct.
 pub struct Bme680Sensor<I2C, D>
 where
-    I2C: i2c::Read + i2c::Write,
-    D: DelayMs<u8>,
+    I2C: i2c::I2c,
+    D: DelayNs,
 {
     bme680: Bme680<I2C, D>,
     delay: D,
@@ -114,8 +114,8 @@ where
 
 impl<I2C, D> Bme680Sensor<I2C, D>
 where
-    I2C: i2c::Read + i2c::Write,
-    D: DelayMs<u8>,
+    I2C: i2c::I2c,
+    D: DelayNs,
 {
     /// Create a new instance reading measurement from `bme680`.
     ///
@@ -149,12 +149,11 @@ where
 
 impl<I2C, D> BmeSensor for Bme680Sensor<I2C, D>
 where
-    D: DelayMs<u8>,
-    I2C: i2c::Read + i2c::Write,
-    <I2C as i2c::Read>::Error: Debug,
-    <I2C as i2c::Write>::Error: Debug,
+    D: DelayNs,
+    I2C: i2c::I2c,
+    <I2C as i2c::ErrorType>::Error: Debug,
 {
-    type Error = bme680::Error<<I2C as i2c::Read>::Error, <I2C as i2c::Write>::Error>;
+    type Error = bme680::Error<<I2C as i2c::ErrorType>::Error>;
 
     fn start_measurement(&mut self, settings: &BmeSettingsHandle) -> Result<Duration, Self::Error> {
         let settings = SettingsBuilder::new()

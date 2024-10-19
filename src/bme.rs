@@ -21,14 +21,14 @@ struct bsec_bme_settings_t {}
 /// use bme680::{Bme680, OversamplingSetting, PowerMode, SettingsBuilder};
 /// use bsec::{Input, InputKind};
 /// use bsec::bme::{BmeSensor, BmeSettingsHandle};
-/// use embedded_hal::blocking::{delay::DelayMs, i2c};
+/// use embedded_hal::{delay::DelayNs, i2c};
 /// use std::fmt::Debug;
 /// use std::time::Duration;
 ///
 /// pub struct Bme680Sensor<I2C, D>
 /// where
-///     D: DelayMs<u8>,
-///     I2C: i2c::Read + i2c::Write
+///     D: DelayNs,
+///     I2C: i2c::I2c,
 /// {
 ///     bme680: Bme680<I2C, D>,
 ///     delay: D,
@@ -36,12 +36,11 @@ struct bsec_bme_settings_t {}
 ///
 /// impl<I2C, D> BmeSensor for Bme680Sensor<I2C, D>
 /// where
-///     D: DelayMs<u8>,
-///     I2C: i2c::Read + i2c::Write,
-///     <I2C as i2c::Read>::Error: Debug,
-///     <I2C as i2c::Write>::Error: Debug,
+///     D: DelayNs,
+///     I2C: i2c::I2c,
+///     <I2C as i2c::ErrorType>::Error: Debug,
 /// {
-///     type Error = bme680::Error<<I2C as i2c::Read>::Error, <I2C as i2c::Write>::Error>;
+///     type Error = bme680::Error<<I2C as i2c::ErrorType>::Error>;
 ///     
 ///     fn start_measurement(
 ///         &mut self,
